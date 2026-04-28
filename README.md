@@ -2,8 +2,8 @@
 
 LLM-WarRoom, shown in the app as WarRoom, is a vibe-coded, local-first AI
 reasoning workbench inspired by Andrej Karpathy's
-[LLM Council](https://github.com/karpathy/llm-council) and the newly viral Claude
-Council skill [aiwithremy](https://www.instagram.com/aiwithremy/).
+[LLM Council](https://github.com/karpathy/llm-council) and the Claude
+Council skill by [Ole Lehmann](https://x.com/itsolelehmann/status/2038661433626333649?s=20).
 
 It is experimental. It can be useful for getting a second, third, or fifth
 opinion on a question or decision, but outputs are not guaranteed to be correct.
@@ -203,4 +203,4 @@ interface.
 ## Acknowledgements
 
 - Inspired by Andrej Karpathy’s [llm-council](https://github.com/karpathy/llm-council), especially the pattern of independent model responses, anonymized peer review, and synthesis.
-- Inspired by Remy / [AI with Remy](https://www.instagram.com/aiwithremy/) and his Council skill for Claude, especially the advisor-lens workflow: Contrarian, First Principles Thinker, Expansionist, Outsider, and Executor.
+- Inspired by Ole / [Oles X post](https://x.com/itsolelehmann/status/2038661433626333649?s=20) and his Council skill for Claude, especially the advisor-lens workflow: Contrarian, First Principles Thinker, Expansionist, Outsider, and Executor.
