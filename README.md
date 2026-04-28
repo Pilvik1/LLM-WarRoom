@@ -1,7 +1,5 @@
 # LLM-WarRoom
 
-![LLM-WarRoom header](header.png)
-
 LLM-WarRoom, shown in the app as WarRoom, is a vibe-coded, local-first AI
 reasoning workbench inspired by Andrej Karpathy's
 [LLM Council](https://github.com/karpathy/llm-council) and the newly viral Claude
