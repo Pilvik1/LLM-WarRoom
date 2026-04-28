@@ -5,6 +5,8 @@ reasoning workbench inspired by Andrej Karpathy's
 [LLM Council](https://github.com/karpathy/llm-council) and the Claude
 Council skill by [Ole Lehmann](https://x.com/itsolelehmann/status/2038661433626333649?s=20).
 
+Existing Claude council skills simulate diversity through Claude sub-agents and personas. The WarRoom adds actual model diversity, where each council seat can combine a reasoning lens with a different underlying LLM.
+
 It is experimental. It can be useful for getting a second, third, or fifth
 opinion on a question or decision, but outputs are not guaranteed to be correct.
 Treat the app as a reasoning aid, not an authority.
