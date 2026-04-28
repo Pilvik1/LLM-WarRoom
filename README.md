@@ -26,16 +26,6 @@ personal reasoning workbench. The goal is practical: make it easy to ask a hard
 question, compare independent model perspectives, surface disagreement, and get
 a synthesized answer or decision verdict.
 
-## Inspiration And Credits
-
-LLM-WarRoom is basically a configured merge of two ideas:
-
-- Karpathy-style multi-model council: independent answers, anonymized peer
-  review, and synthesis.
-- Claude Council skill: framed question, advisor lenses, peer review,
-  and verdict.
-
-
 ## Core Workflows
 
 ### Ask
