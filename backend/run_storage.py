@@ -1,6 +1,7 @@
 """Storage helpers for case run artifacts."""
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -12,11 +13,21 @@ RUNS_DIR = Path("data/runs")
 _SAFE_RUN_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
+def _run_directory(run_id: str) -> Path:
+    """Return a normalized child directory of RUNS_DIR for one safe run ID."""
+    if not _SAFE_RUN_ID.fullmatch(run_id) or os.path.basename(run_id) != run_id:
+        raise ValueError("Invalid run_id")
+
+    base_dir = os.path.realpath(RUNS_DIR)
+    run_dir = os.path.realpath(os.path.join(base_dir, run_id))
+    if not run_dir.startswith(base_dir + os.sep):
+        raise ValueError("Invalid run_id")
+    return Path(run_dir)
+
+
 def save_run_record(record: RunRecord) -> Path:
     """Persist a run record to data/runs/<run_id>/run.json."""
-    if not _SAFE_RUN_ID.fullmatch(record.run_id):
-        raise ValueError("Invalid run_id")
-    run_dir = RUNS_DIR / record.run_id
+    run_dir = _run_directory(record.run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
     path = run_dir / "run.json"
     data = _normalize_run_dict(_dump_record(record))
@@ -28,9 +39,7 @@ def save_run_record(record: RunRecord) -> Path:
 
 def load_run_record(run_id: str) -> dict[str, Any]:
     """Load data/runs/<run_id>/run.json as a dictionary."""
-    if not _SAFE_RUN_ID.fullmatch(run_id):
-        raise ValueError("Invalid run_id")
-    path = RUNS_DIR / run_id / "run.json"
+    path = _run_directory(run_id) / "run.json"
     if not path.exists():
         raise FileNotFoundError(f"Run artifact not found: {path}")
     with path.open("r", encoding="utf-8") as f:
@@ -72,7 +81,7 @@ def list_run_records(limit: int = 50) -> list[dict[str, Any]]:
 
 def save_decision_record(run_id: str, decision: dict[str, Any]) -> Path:
     """Persist a deterministic decision to data/runs/<run_id>/decision.json."""
-    run_dir = RUNS_DIR / run_id
+    run_dir = _run_directory(run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
     path = run_dir / "decision.json"
     with path.open("w", encoding="utf-8") as f:
@@ -217,11 +226,12 @@ def _artifact_paths_for(data: dict[str, Any]) -> dict[str, str]:
     run_id = data.get("run_id")
     if not run_id:
         return {}
+    run_dir = _run_directory(str(run_id))
     paths = {
-        "run_json": str(RUNS_DIR / run_id / "run.json"),
-        "summary_md": str(RUNS_DIR / run_id / "summary.md"),
+        "run_json": str(run_dir / "run.json"),
+        "summary_md": str(run_dir / "summary.md"),
     }
-    decision_path = RUNS_DIR / run_id / "decision.json"
+    decision_path = run_dir / "decision.json"
     if decision_path.exists() or data.get("case_type") == "decide" or data.get("decision"):
         paths["decision_json"] = str(decision_path)
     return paths

@@ -1,6 +1,11 @@
 import pytest
 
-from backend.run_storage import list_run_records, load_run_record, save_run_record
+from backend.run_storage import (
+    list_run_records,
+    load_run_record,
+    save_decision_record,
+    save_run_record,
+)
 from backend.schemas.case import CaseInput
 from backend.schemas.run import RunRecord
 import backend.run_storage as run_storage
@@ -64,3 +69,9 @@ def test_run_id_cannot_escape_run_directory(tmp_path, monkeypatch):
                 created_at="2026-10-25T20:00:00+00:00",
             )
         )
+
+
+def test_decision_run_id_cannot_escape_run_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_storage, "RUNS_DIR", tmp_path / "runs")
+    with pytest.raises(ValueError, match="Invalid run_id"):
+        save_decision_record("../../outside", {"decision": "GO"})

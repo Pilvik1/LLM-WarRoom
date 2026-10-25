@@ -8,6 +8,7 @@ from typing import List, Dict, Any
 import uuid
 import json
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 from . import storage
@@ -25,6 +26,7 @@ from .schemas.case import CaseInput
 from .schemas.preset import CouncilPreset, WorkflowType
 from .schemas.run import RunRecord
 
+logger = logging.getLogger(__name__)
 app = FastAPI(title="Extended Council API", version="0.2.0")
 _RUN_TASKS: dict[str, asyncio.Task] = {}
 
@@ -540,7 +542,8 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
             yield f"data: {json.dumps({'type': 'complete', 'run_id': run_id})}\n\n"
 
         except Exception as e:
-            errors.append(str(e))
+            logger.exception("Council stream failed for run %s", run_id)
+            errors.append(f"{type(e).__name__}: provider or orchestration failure")
             run_record = RunRecord(
                 run_id=run_id,
                 case_id=case_input.id,
@@ -557,7 +560,7 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
             )
             save_run_record(run_record)
             # Send error event
-            yield f"data: {json.dumps({'type': 'error', 'run_id': run_id, 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'run_id': run_id, 'message': 'The run failed. Check server logs for details.'})}\n\n"
 
     return StreamingResponse(
         event_generator(),
