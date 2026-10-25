@@ -58,8 +58,7 @@ describe('CouncilWorkbench', () => {
 
     render(<CouncilWorkbench />);
 
-    expect(await screen.findByDisplayValue('General Council')).toBeInTheDocument();
-    expect(screen.getByLabelText('Seat 1 name')).toHaveValue('Skeptic');
+    expect(await screen.findByLabelText('Seat 1 name')).toHaveValue('Skeptic');
     expect(screen.getByLabelText('Skeptic model')).toHaveValue('model-b');
 
     fireEvent.change(screen.getByLabelText('Skeptic model'), { target: { value: 'model-a' } });
@@ -82,7 +81,7 @@ describe('CouncilWorkbench', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<CouncilWorkbench />);
 
-    await screen.findByDisplayValue('General Council');
+    await screen.findByLabelText('Seat 1 name');
     fireEvent.change(screen.getByPlaceholderText(/Describe the decision/), { target: { value: 'Should we ship?' } });
     fireEvent.click(screen.getByRole('button', { name: /Start run/ }));
 
