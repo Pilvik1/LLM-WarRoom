@@ -18,16 +18,17 @@ def ensure_data_dir():
 
 def _conversation_file_path(conversation_id: str) -> Path:
     """Return a safe path inside DATA_DIR for a conversation JSON file."""
-    if not _SAFE_CONVERSATION_ID.fullmatch(conversation_id):
+    if (
+        not _SAFE_CONVERSATION_ID.fullmatch(conversation_id)
+        or os.path.basename(conversation_id) != conversation_id
+    ):
         raise ValueError("Invalid conversation_id")
 
-    base_dir = Path(DATA_DIR).resolve()
-    path = (base_dir / f"{conversation_id}.json").resolve()
-    try:
-        path.relative_to(base_dir)
-    except ValueError as exc:
-        raise ValueError("Invalid conversation_id") from exc
-    return path
+    base_dir = os.path.realpath(DATA_DIR)
+    path = os.path.realpath(os.path.join(base_dir, f"{conversation_id}.json"))
+    if not path.startswith(base_dir + os.sep):
+        raise ValueError("Invalid conversation_id")
+    return Path(path)
 
 
 def get_conversation_path(conversation_id: str) -> str:
