@@ -38,6 +38,35 @@
   padding: 24px;
 }
 
+.error-banner,
+.message-error {
+  border: 1px solid #f0b8b8;
+  background: #fff5f5;
+  color: #8f1d1d;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+}
+
+.error-banner button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.message-error {
+  margin: 8px 0 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;

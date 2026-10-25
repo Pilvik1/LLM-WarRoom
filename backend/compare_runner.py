@@ -1,7 +1,7 @@
 """Compare case runner."""
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 import re
 
@@ -25,7 +25,7 @@ async def run_compare_case(
 ) -> RunRecord:
     """Run independent comparisons, synthesize them, and persist the run."""
     run_id = run_id or new_run_id()
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     errors: list[str] = []
 
     respondent_aliases = case_input.respondent_aliases or list(RESPONDENT_MODEL_ALIASES)
@@ -118,7 +118,7 @@ async def run_compare_case(
         input=case_input,
         status=status,
         created_at=created_at,
-        completed_at=datetime.utcnow().isoformat(),
+        completed_at=datetime.now(timezone.utc).isoformat(),
         comparisons=comparisons,
         aggregate_rankings=aggregate_rankings,
         synthesis=synthesis,

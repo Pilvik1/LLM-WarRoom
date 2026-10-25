@@ -95,17 +95,20 @@ artifacts are ignored by git by default.
 
 ## Setup
 
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and
+Node.js 22 or newer before continuing.
+
 Install Python dependencies with `uv`:
 
 ```bash
-uv sync
+uv sync --frozen --group dev
 ```
 
 Install frontend dependencies:
 
 ```bash
 cd frontend
-npm install
+npm ci
 cd ..
 ```
 

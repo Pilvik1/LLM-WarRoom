@@ -1,6 +1,6 @@
 """Deterministic decide mode."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 import re
 
@@ -44,7 +44,7 @@ def run_decide_case(
         "observed_recommendations": observed.get("recommendations", {}),
         "observed_confidence": observed.get("confidence", {}),
         "source_artifacts": source_artifacts,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "artifact": {
             "path": f"data/runs/{run_id}/decision.json",
             "format": "decision.json",

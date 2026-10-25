@@ -1,6 +1,6 @@
 """Thin case/run wrapper around the inherited ask council flow."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from .config import RESPONDENT_MODEL_ALIASES, SYNTHESIZER_MODEL_ALIAS
@@ -34,7 +34,7 @@ def ask_case_from_message(
 async def run_ask_case(case_input: CaseInput, run_id: str | None = None) -> RunRecord:
     """Run the existing ask council flow and return a persisted run record."""
     run_id = run_id or new_run_id()
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     errors: list[str] = []
 
     try:
@@ -57,7 +57,7 @@ async def run_ask_case(case_input: CaseInput, run_id: str | None = None) -> RunR
         input=case_input,
         status=status,
         created_at=created_at,
-        completed_at=datetime.utcnow().isoformat(),
+        completed_at=datetime.now(timezone.utc).isoformat(),
         independent_responses=stage1_results,
         peer_reviews=stage2_results,
         aggregate_rankings=metadata.get("aggregate_rankings"),
