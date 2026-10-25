@@ -153,7 +153,12 @@ async def run_war_room_case(
         created_at=created_at,
         completed_at=datetime.now(timezone.utc).isoformat(),
         preset_snapshot=case_input.preset_snapshot,
-        stage_events=_stage_events(status, bool(advisor_responses), bool(peer_reviews), bool(verdict)),
+        stage_events=_stage_events(
+            status,
+            any((item.get("raw_output") or "").strip() for item in advisor_responses),
+            any((item.get("raw_output") or "").strip() for item in peer_reviews),
+            bool(verdict and (verdict.get("raw_output") or "").strip()),
+        ),
         framed_question=framed_question,
         advisor_responses=advisor_responses,
         peer_reviews=peer_reviews,

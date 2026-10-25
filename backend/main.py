@@ -26,6 +26,7 @@ from .schemas.preset import CouncilPreset, WorkflowType
 from .schemas.run import RunRecord
 
 app = FastAPI(title="WarRoom API")
+_RUN_TASKS: dict[str, asyncio.Task] = {}
 
 # Enable CORS for local development
 app.add_middleware(
@@ -194,7 +195,19 @@ async def get_run(run_id: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@app.post("/api/runs", status_code=201)
+@app.get("/api/runs/{run_id}/events")
+async def get_run_events(run_id: str):
+    """Return the persisted lifecycle events for a run."""
+    try:
+        record = load_run_record(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"run_id": run_id, "events": record.get("stage_events", [])}
+
+
+@app.post("/api/runs", status_code=202)
 async def create_run(request: CreateRunRequest):
     preset = _resolve_run_preset(request)
     if preset.workflow_type != request.workflow_type:
@@ -228,13 +241,37 @@ async def create_run(request: CreateRunRequest):
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    if request.workflow_type == "ask":
-        record = await run_ask_case(case_input)
-    elif request.workflow_type == "compare":
-        record = await run_compare_case(case_input)
-    else:
-        record = await run_war_room_case(case_input)
-    return load_run_record(record.run_id)
+    return _schedule_run(case_input, request.workflow_type)
+
+
+@app.post("/api/runs/{run_id}/cancel")
+async def cancel_run(run_id: str):
+    """Cancel an in-process run and persist an explicit terminal state."""
+    task = _RUN_TASKS.get(run_id)
+    if not task or task.done():
+        raise HTTPException(status_code=409, detail="Run is not active")
+    _mark_run_cancelled(run_id)
+    task.cancel()
+    await asyncio.sleep(0)
+    return load_run_record(run_id)
+
+
+@app.post("/api/runs/{run_id}/retry", status_code=202)
+async def retry_run(run_id: str):
+    """Start a new run from an immutable prior input and preset snapshot."""
+    try:
+        previous = load_run_record(run_id)
+        case_input = CaseInput.model_validate(previous["input"])
+        workflow_type = previous.get("workflow_type") or previous.get("case_type")
+        if workflow_type == "war_room":
+            workflow_type = "council"
+        if workflow_type not in ("ask", "council", "compare"):
+            raise HTTPException(status_code=422, detail="Only Ask, Council, and Compare runs can be retried")
+        return _schedule_run(case_input, workflow_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 def _resolve_run_preset(request: CreateRunRequest) -> CouncilPreset:
@@ -249,6 +286,62 @@ def _resolve_run_preset(request: CreateRunRequest) -> CouncilPreset:
     if not preset:
         raise HTTPException(status_code=404, detail=f"Preset not found: {preset_id}")
     return preset
+
+
+def _schedule_run(case_input: CaseInput, workflow_type: WorkflowType) -> dict[str, Any]:
+    run_id = new_run_id()
+    initial = RunRecord(
+        run_id=run_id,
+        case_id=case_input.id,
+        case_type=case_input.case_type,
+        workflow_type=workflow_type,
+        input=case_input,
+        status="running",
+        created_at=datetime.now(timezone.utc).isoformat(),
+        preset_snapshot=case_input.preset_snapshot,
+        stage_events=[{"stage": "run", "status": "running"}],
+    )
+    save_run_record(initial)
+    task = asyncio.create_task(_execute_run(case_input, workflow_type, run_id))
+    _RUN_TASKS[run_id] = task
+    task.add_done_callback(lambda finished: _finish_run_task(run_id, finished))
+    return load_run_record(run_id)
+
+
+async def _execute_run(
+    case_input: CaseInput,
+    workflow_type: WorkflowType,
+    run_id: str,
+) -> None:
+    try:
+        if workflow_type == "ask":
+            await run_ask_case(case_input, run_id=run_id)
+        elif workflow_type == "compare":
+            await run_compare_case(case_input, run_id=run_id)
+        else:
+            await run_war_room_case(case_input, run_id=run_id)
+    except asyncio.CancelledError:
+        _mark_run_cancelled(run_id)
+        raise
+
+
+def _finish_run_task(run_id: str, task: asyncio.Task) -> None:
+    _RUN_TASKS.pop(run_id, None)
+    if not task.cancelled():
+        task.exception()
+
+
+def _mark_run_cancelled(run_id: str) -> None:
+    data = load_run_record(run_id)
+    data["status"] = "cancelled"
+    data["completed_at"] = datetime.now(timezone.utc).isoformat()
+    events = data.get("stage_events", [])
+    if not events or events[-1] != {"stage": "run", "status": "cancelled"}:
+        data["stage_events"] = [
+            *events,
+            {"stage": "run", "status": "cancelled"},
+        ]
+    save_run_record(RunRecord.model_validate(data))
 
 
 @app.get("/api/conversations", response_model=List[ConversationMetadata])

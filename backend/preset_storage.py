@@ -22,6 +22,18 @@ def _assigned_alias(index: int) -> str:
     return aliases[index % len(aliases)]
 
 
+def _seats(roles: list[tuple[str, str]]) -> list[SeatDefinition]:
+    return [
+        SeatDefinition(
+            id=re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_"),
+            name=name,
+            role_prompt=prompt,
+            model_alias=_assigned_alias(index),
+        )
+        for index, (name, prompt) in enumerate(roles)
+    ]
+
+
 def built_in_presets() -> list[CouncilPreset]:
     """Return fresh built-in presets based on the active alias configuration."""
     council_seats = [
@@ -67,6 +79,59 @@ def built_in_presets() -> list[CouncilPreset]:
             description="Five reasoning lenses for decisions, plans, ideas, and artifacts.",
             workflow_type="council",
             seats=council_seats,
+            **common,
+        ),
+        CouncilPreset(
+            id="decision-review",
+            name="Decision Review",
+            description="Test a consequential choice from evidence, risk, and execution angles.",
+            workflow_type="council",
+            seats=_seats([
+                ("Decision Analyst", "Clarify the decision, alternatives, evidence, and expected value."),
+                ("Risk Officer", "Identify downside, failure modes, irreversible exposure, and safeguards."),
+                ("Contrarian", "Build the strongest case against the apparent preferred option."),
+                ("Operator", "Translate the decision into sequencing, ownership, and a reversible first step."),
+            ]),
+            **common,
+        ),
+        CouncilPreset(
+            id="code-review",
+            name="Code Review",
+            description="Review an implementation for correctness, security, simplicity, and operability.",
+            workflow_type="council",
+            seats=_seats([
+                ("Correctness Reviewer", "Find logic errors, unhandled states, broken contracts, and missing tests."),
+                ("Security Reviewer", "Identify trust-boundary failures, unsafe inputs, secret exposure, and abuse paths."),
+                ("Maintainer", "Reduce accidental complexity and improve readability, boundaries, and change safety."),
+                ("Operator", "Assess deployment, observability, failure recovery, and runtime behavior."),
+            ]),
+            **common,
+        ),
+        CouncilPreset(
+            id="investment-case",
+            name="Investment Case",
+            description="Pressure-test an investment thesis without hiding uncertainty.",
+            workflow_type="council",
+            seats=_seats([
+                ("Fundamental Analyst", "Assess business quality, economics, financial evidence, and valuation drivers."),
+                ("Industry Analyst", "Examine market structure, competition, bargaining power, and industry change."),
+                ("Bear Case", "Build the strongest evidence-based downside case and identify thesis breakers."),
+                ("Catalyst Analyst", "Identify what changes the market's view, on what timeline, and with what evidence."),
+                ("Portfolio Manager", "Judge sizing, opportunity cost, risk limits, and what must be monitored."),
+            ]),
+            **common,
+        ),
+        CouncilPreset(
+            id="red-team",
+            name="Red Team",
+            description="Attack a plan before reality gets the opportunity.",
+            workflow_type="council",
+            seats=_seats([
+                ("Adversary", "Actively find how the plan can be exploited, defeated, or made irrelevant."),
+                ("Assumption Auditor", "List hidden assumptions and identify the cheapest way to falsify each one."),
+                ("Pre-mortem Lead", "Assume failure occurred and reconstruct the most plausible causal chain."),
+                ("Recovery Planner", "Design mitigations, tripwires, fallbacks, and recovery actions."),
+            ]),
             **common,
         ),
         CouncilPreset(

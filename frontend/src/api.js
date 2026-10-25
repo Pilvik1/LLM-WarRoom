@@ -89,6 +89,20 @@ export const api = {
     return parseResponse(response, 'Failed to run the council');
   },
 
+  async cancelRun(runId) {
+    const response = await fetch(`${API_BASE}/api/runs/${runId}/cancel`, {
+      method: 'POST',
+    });
+    return parseResponse(response, 'Failed to cancel the run');
+  },
+
+  async retryRun(runId) {
+    const response = await fetch(`${API_BASE}/api/runs/${runId}/retry`, {
+      method: 'POST',
+    });
+    return parseResponse(response, 'Failed to retry the run');
+  },
+
   /**
    * List all conversations.
    */

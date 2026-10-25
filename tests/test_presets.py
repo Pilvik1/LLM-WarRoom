@@ -40,3 +40,19 @@ def test_built_in_preset_cannot_be_overwritten(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="built-in presets cannot be overwritten"):
         preset_storage.save_preset(preset)
+
+
+def test_council_presets_cover_core_personal_workflows(tmp_path, monkeypatch):
+    monkeypatch.setattr(preset_storage, "PRESETS_DIR", tmp_path / "presets")
+
+    council_ids = {
+        preset.id for preset in preset_storage.list_presets("council")
+    }
+
+    assert council_ids >= {
+        "general-council",
+        "decision-review",
+        "code-review",
+        "investment-case",
+        "red-team",
+    }

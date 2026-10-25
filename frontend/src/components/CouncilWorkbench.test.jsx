@@ -92,4 +92,56 @@ describe('CouncilWorkbench', () => {
     expect(payload.preset.seats[0].model_alias).toBe('model-b');
     await waitFor(() => expect(screen.getByText('Complete')).toBeInTheDocument());
   });
+
+  it('cancels a background run from the result toolbar', async () => {
+    const runningRun = {
+      run_id: 'run-active', workflow_type: 'council', status: 'running',
+      input: { task: 'Long council run' }, stage_events: [{ stage: 'run', status: 'running' }],
+      outputs: {}, errors: [],
+    };
+    const fetchMock = vi.fn((url, options = {}) => {
+      if (url.endsWith('/api/providers')) return jsonResponse(providers);
+      if (url.endsWith('/api/presets')) return jsonResponse(presets);
+      if (url.endsWith('/api/runs') && !options.method) return jsonResponse([]);
+      if (url.endsWith('/api/runs') && options.method === 'POST') return jsonResponse(runningRun, 202);
+      if (url.endsWith('/api/runs/run-active/cancel')) {
+        return jsonResponse({ ...runningRun, status: 'cancelled', completed_at: '2026-10-25T20:00:00Z' });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CouncilWorkbench />);
+
+    await screen.findByLabelText('Seat 1 name');
+    fireEvent.change(screen.getByPlaceholderText(/Describe the decision/), { target: { value: 'Long council run' } });
+    fireEvent.click(screen.getByRole('button', { name: /Start run/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+    expect(await screen.findByText('Cancelled')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching('/api/runs/run-active/cancel$'),
+      { method: 'POST' }
+    );
+  });
+
+  it('saves edited configuration as a custom preset copy', async () => {
+    const fetchMock = vi.fn((url, options = {}) => {
+      if (url.endsWith('/api/providers')) return jsonResponse(providers);
+      if (url.endsWith('/api/presets') && options.method === 'POST') {
+        return jsonResponse(JSON.parse(options.body), 201);
+      }
+      if (url.endsWith('/api/presets')) return jsonResponse(presets);
+      if (url.endsWith('/api/runs')) return jsonResponse([]);
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CouncilWorkbench />);
+
+    await screen.findByLabelText('Seat 1 name');
+    fireEvent.click(screen.getByRole('button', { name: 'Save a copy' }));
+
+    expect(await screen.findByDisplayValue('General Council Copy')).toBeInTheDocument();
+    const request = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST');
+    expect(JSON.parse(request[1].body).built_in).toBe(false);
+  });
 });
