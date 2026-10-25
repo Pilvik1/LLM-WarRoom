@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 import uuid
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 from . import storage
 from .case_runner import ask_case_from_message, new_run_id
@@ -115,6 +115,12 @@ async def root():
     return {"status": "ok", "service": "WarRoom API"}
 
 
+@app.get("/api/health")
+async def health():
+    """Stable API health endpoint."""
+    return {"status": "ok", "service": "WarRoom API"}
+
+
 @app.get("/api/conversations", response_model=List[ConversationMetadata])
 async def list_conversations():
     """List all conversations (metadata only)."""
@@ -175,7 +181,7 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
     # Run the ask case through the inherited 3-stage council process.
     case_input = ask_case_from_message(request.content, case_id=conversation_id)
     run_id = new_run_id()
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     stage1_results, stage2_results, stage3_result, metadata = await run_full_council(
         case_input.task
     )
@@ -192,7 +198,7 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
         input=case_input,
         status="completed",
         created_at=created_at,
-        completed_at=datetime.utcnow().isoformat(),
+        completed_at=datetime.now(timezone.utc).isoformat(),
         independent_responses=stage1_results,
         peer_reviews=stage2_results,
         aggregate_rankings=metadata.get("aggregate_rankings"),
@@ -238,7 +244,7 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
     async def event_generator():
         run_id = new_run_id()
         case_input = ask_case_from_message(request.content, case_id=conversation_id)
-        created_at = datetime.utcnow().isoformat()
+        created_at = datetime.now(timezone.utc).isoformat()
         errors = []
         try:
             yield f"data: {json.dumps({'type': 'run_start', 'run_id': run_id, 'case_type': case_input.case_type})}\n\n"
@@ -288,7 +294,7 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
                 input=case_input,
                 status="completed",
                 created_at=created_at,
-                completed_at=datetime.utcnow().isoformat(),
+                completed_at=datetime.now(timezone.utc).isoformat(),
                 independent_responses=stage1_results,
                 peer_reviews=stage2_results,
                 aggregate_rankings=aggregate_rankings,
@@ -319,7 +325,7 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
                 input=case_input,
                 status="failed",
                 created_at=created_at,
-                completed_at=datetime.utcnow().isoformat(),
+                completed_at=datetime.now(timezone.utc).isoformat(),
                 independent_responses=locals().get("stage1_results", []),
                 peer_reviews=locals().get("stage2_results", []),
                 aggregate_rankings=locals().get("aggregate_rankings"),
@@ -503,4 +509,4 @@ async def war_room_case(request: WarRoomCaseRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="127.0.0.1", port=8001)

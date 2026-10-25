@@ -1,7 +1,7 @@
 """War Room case runner."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from .case_runner import new_run_id
@@ -25,7 +25,7 @@ async def run_war_room_case(
 ) -> RunRecord:
     """Run five advisor lenses, anonymized peer review, and final verdict."""
     run_id = run_id or new_run_id()
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     errors: list[str] = []
 
     respondent_aliases = case_input.respondent_aliases or list(RESPONDENT_MODEL_ALIASES)
@@ -119,7 +119,7 @@ async def run_war_room_case(
         input=case_input,
         status=status,
         created_at=created_at,
-        completed_at=datetime.utcnow().isoformat(),
+        completed_at=datetime.now(timezone.utc).isoformat(),
         framed_question=framed_question,
         advisor_responses=advisor_responses,
         peer_reviews=peer_reviews,

@@ -1,8 +1,6 @@
-/**
- * API client for the WarRoom backend.
- */
+/** API client for the council backend. */
 
-const API_BASE = 'http://localhost:8001';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001';
 
 async function parseResponse(response, fallbackMessage) {
   if (response.ok) {
@@ -16,7 +14,39 @@ async function parseResponse(response, fallbackMessage) {
   } catch {
     detail = await response.text();
   }
-  throw new Error(detail || fallbackMessage);
+  const error = new Error(detail || fallbackMessage);
+  error.status = response.status;
+  throw error;
+}
+
+function dispatchSseFrame(frame, onEvent) {
+  const data = frame
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart())
+    .join('\n');
+
+  if (!data) return;
+  const event = JSON.parse(data);
+  onEvent(event.type, event);
+}
+
+export function consumeSseBuffer(buffer, onEvent, flush = false) {
+  let remaining = buffer;
+  let match = remaining.match(/\r?\n\r?\n/);
+
+  while (match) {
+    const frame = remaining.slice(0, match.index);
+    remaining = remaining.slice(match.index + match[0].length);
+    if (frame.trim()) dispatchSseFrame(frame, onEvent);
+    match = remaining.match(/\r?\n\r?\n/);
+  }
+
+  if (flush && remaining.trim()) {
+    dispatchSseFrame(remaining, onEvent);
+    return '';
+  }
+  return remaining;
 }
 
 export const api = {
@@ -102,28 +132,23 @@ export const api = {
       await parseResponse(response, 'Failed to send message');
     }
 
+    if (!response.body) {
+      throw new Error('The server returned an empty event stream.');
+    }
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          try {
-            const event = JSON.parse(data);
-            onEvent(event.type, event);
-          } catch (e) {
-            console.error('Failed to parse SSE event:', e);
-          }
-        }
-      }
+      buffer += decoder.decode(value, { stream: true });
+      buffer = consumeSseBuffer(buffer, onEvent);
     }
+
+    buffer += decoder.decode();
+    consumeSseBuffer(buffer, onEvent, true);
   },
 
   async evaluateCase(payload) {

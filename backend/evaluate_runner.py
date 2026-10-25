@@ -1,6 +1,6 @@
 """Evaluate case runner."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from .case_runner import new_run_id
@@ -26,7 +26,7 @@ async def run_evaluate_case(
 ) -> RunRecord:
     """Run independent evaluations, synthesize them, and persist the run."""
     run_id = run_id or new_run_id()
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     errors: list[str] = []
 
     respondent_aliases = case_input.respondent_aliases or list(RESPONDENT_MODEL_ALIASES)
@@ -105,7 +105,7 @@ async def run_evaluate_case(
         input=case_input,
         status=status,
         created_at=created_at,
-        completed_at=datetime.utcnow().isoformat(),
+        completed_at=datetime.now(timezone.utc).isoformat(),
         evaluations=evaluations,
         synthesis=synthesis,
         errors=errors,

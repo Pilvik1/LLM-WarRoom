@@ -9,6 +9,8 @@ export default function ChatInterface({
   conversation,
   onSendMessage,
   isLoading,
+  error,
+  onDismissError,
   mode,
   onModeChange,
 }) {
@@ -43,6 +45,7 @@ export default function ChatInterface({
     return (
       <div className="chat-interface">
         <ModeSelector mode={mode} onModeChange={onModeChange} />
+        {error && <ErrorBanner message={error} onDismiss={onDismissError} />}
         <div className="empty-state">
           <h2>Welcome to WarRoom</h2>
           <p>Ask a question and get a refined answer from multiple model perspectives.</p>
@@ -54,6 +57,7 @@ export default function ChatInterface({
   return (
     <div className="chat-interface">
       <ModeSelector mode={mode} onModeChange={onModeChange} />
+      {error && <ErrorBanner message={error} onDismiss={onDismissError} />}
       <div className="messages-container">
         {conversation.messages.length === 0 ? (
           <div className="empty-state">
@@ -75,6 +79,12 @@ export default function ChatInterface({
               ) : (
                 <div className="assistant-message">
                   <div className="message-label">WarRoom</div>
+
+                  {msg.error && (
+                    <div className="message-error" role="alert">
+                      {msg.error}
+                    </div>
+                  )}
 
                   {/* Stage 1 */}
                   {msg.loading?.stage1 && (
@@ -125,26 +135,36 @@ export default function ChatInterface({
         <div ref={messagesEndRef} />
       </div>
 
-      {conversation.messages.length === 0 && (
-        <form className="input-form" onSubmit={handleSubmit}>
-          <textarea
-            className="message-input"
-            placeholder="Ask your question... (Shift+Enter for new line, Enter to send)"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            rows={3}
-          />
-          <button
-            type="submit"
-            className="send-button"
-            disabled={!input.trim() || isLoading}
-          >
-            Send
-          </button>
-        </form>
-      )}
+      <form className="input-form" onSubmit={handleSubmit}>
+        <textarea
+          className="message-input"
+          aria-label="Council question"
+          placeholder="Ask your question... (Shift+Enter for new line, Enter to send)"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isLoading}
+          rows={3}
+        />
+        <button
+          type="submit"
+          className="send-button"
+          disabled={!input.trim() || isLoading}
+        >
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function ErrorBanner({ message, onDismiss }) {
+  return (
+    <div className="error-banner" role="alert">
+      <span>{message}</span>
+      <button type="button" onClick={onDismiss} aria-label="Dismiss error">
+        Dismiss
+      </button>
     </div>
   );
 }
