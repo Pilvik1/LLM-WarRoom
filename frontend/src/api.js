@@ -50,6 +50,45 @@ export function consumeSseBuffer(buffer, onEvent, flush = false) {
 }
 
 export const api = {
+  async listProviders() {
+    const response = await fetch(`${API_BASE}/api/providers`);
+    return parseResponse(response, 'Failed to load provider configuration');
+  },
+
+  async listPresets(workflowType) {
+    const query = workflowType ? `?workflow_type=${workflowType}` : '';
+    const response = await fetch(`${API_BASE}/api/presets${query}`);
+    return parseResponse(response, 'Failed to load council presets');
+  },
+
+  async savePreset(preset) {
+    const response = await fetch(`${API_BASE}/api/presets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(preset),
+    });
+    return parseResponse(response, 'Failed to save council preset');
+  },
+
+  async listRuns() {
+    const response = await fetch(`${API_BASE}/api/runs`);
+    return parseResponse(response, 'Failed to load run history');
+  },
+
+  async getRun(runId) {
+    const response = await fetch(`${API_BASE}/api/runs/${runId}`);
+    return parseResponse(response, 'Failed to load run');
+  },
+
+  async createRun(payload) {
+    const response = await fetch(`${API_BASE}/api/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseResponse(response, 'Failed to run the council');
+  },
+
   /**
    * List all conversations.
    */
