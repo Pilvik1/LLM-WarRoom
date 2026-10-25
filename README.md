@@ -189,6 +189,10 @@ Open http://localhost:5173.
 - Provider availability depends on your local keys, installed packages, account
   access, rate limits, and credits.
 
+The staged V0.2 rebuild is defined in [roadmap.md](roadmap.md). Its focus is
+first-class role-to-model assignment, reusable council presets, a canonical run
+lifecycle, and a redesigned council workbench.
+
 ## Advanced / Internal Endpoints
 
 These endpoints exist for structured workflows and future UI work:
