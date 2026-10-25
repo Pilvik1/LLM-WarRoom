@@ -8,6 +8,9 @@ const WORKFLOWS = [
   { id: 'council', label: 'Council', description: 'Role-based deliberation for hard decisions.' },
   { id: 'compare', label: 'Compare', description: 'Evaluate named options against clear criteria.' },
 ];
+const DEFAULT_PRESETS = {
+  ask: 'multi-model-ask', council: 'general-council', compare: 'structured-compare',
+};
 
 const STAGE_LABELS = {
   independent_responses: 'Independent responses', advisor_responses: 'Council seats',
@@ -39,7 +42,30 @@ function responseItems(run) {
 }
 
 function responseText(item) { return item.response || item.comparison || item.raw_output || ''; }
-function statusLabel(status) { return status === 'completed' ? 'Complete' : status === 'partial' ? 'Partial' : status; }
+function statusLabel(status) {
+  if (status === 'completed') return 'Complete';
+  if (status === 'partial') return 'Partial';
+  if (status === 'cancelled') return 'Cancelled';
+  return status;
+}
+
+function downloadFile(name, content, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement('a');
+  link.href = url; link.download = name; link.click();
+  URL.revokeObjectURL(url);
+}
+
+function runMarkdown(run) {
+  const perspectives = responseItems(run).map((item, index) =>
+    `## ${item.advisor_name || item.display_name || `Response ${index + 1}`}\n\n${responseText(item)}`
+  ).join('\n\n');
+  return `# ${run.input?.task || 'Council run'}\n\n` +
+    `**Workflow:** ${run.workflow_type || run.case_type}\n\n` +
+    `**Status:** ${run.status}\n\n` +
+    `## Synthesis\n\n${resultText(run) || 'No synthesis produced.'}\n\n` +
+    `# Individual perspectives\n\n${perspectives}\n`;
+}
 
 function Icon({ name, size = 18 }) {
   const paths = {
@@ -51,6 +77,8 @@ function Icon({ name, size = 18 }) {
     arrow: <><path d="M5 12h14M13 6l6 6-6 6"/></>, check: <path d="m5 12 4 4L19 6"/>,
     alert: <><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 9v4M12 17h.01"/></>,
     chevron: <path d="m9 18 6-6-6-6"/>, close: <path d="m6 6 12 12M18 6 6 18"/>,
+    download: <><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></>,
+    retry: <><path d="M20 6v6h-6"/><path d="M19 12a7 7 0 1 0-2 5"/></>,
   };
   return <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
@@ -71,6 +99,7 @@ export default function CouncilWorkbench() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [historyQuery, setHistoryQuery] = useState('');
   const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth > 1120);
 
   const loadWorkspace = useCallback(async () => {
@@ -91,11 +120,26 @@ export default function CouncilWorkbench() {
   );
 
   useEffect(() => {
-    const preferred = workflowPresets.find((preset) => preset.built_in) || workflowPresets[0];
+    if (draftPreset?.workflow_type === workflow) return;
+    const preferred = workflowPresets.find((preset) => preset.id === DEFAULT_PRESETS[workflow]) || workflowPresets[0];
     setDraftPreset(preferred ? clone(preferred) : null);
-  }, [workflow, workflowPresets]);
+  }, [draftPreset, workflow, workflowPresets]);
 
-  const selectWorkflow = (nextWorkflow) => { setWorkflow(nextWorkflow); setActiveRun(null); setError(''); };
+  useEffect(() => {
+    if (!activeRun?.run_id || activeRun.status !== 'running') return undefined;
+    const timer = window.setInterval(async () => {
+      try {
+        const nextRun = await api.getRun(activeRun.run_id);
+        setActiveRun(nextRun);
+        if (nextRun.status !== 'running') setRuns(await api.listRuns());
+      } catch (err) {
+        setError(err.message || 'Could not refresh the active run.');
+      }
+    }, 800);
+    return () => window.clearInterval(timer);
+  }, [activeRun?.run_id, activeRun?.status]);
+
+  const selectWorkflow = (nextWorkflow) => { setWorkflow(nextWorkflow); setDraftPreset(null); setActiveRun(null); setError(''); };
   const selectPreset = (presetId) => {
     const preset = presets.find((item) => item.id === presetId);
     if (preset) setDraftPreset(clone(preset));
@@ -143,8 +187,58 @@ export default function CouncilWorkbench() {
     }
   };
 
+  const savePresetCopy = async () => {
+    if (!draftPreset) return;
+    const suffix = Date.now().toString().slice(-6);
+    const copy = {
+      ...draftPreset,
+      id: `${draftPreset.id.replace(/[^a-zA-Z0-9_-]/g, '-')}-copy-${suffix}`,
+      name: `${draftPreset.name} Copy`,
+      built_in: false,
+    };
+    try {
+      const saved = await api.savePreset(copy);
+      setPresets((previous) => [...previous, saved]);
+      setDraftPreset(saved);
+      setError('');
+    } catch (err) { setError(err.message || 'Could not save the preset.'); }
+  };
+
+  const resetPreset = () => { if (draftPreset) selectPreset(draftPreset.id); };
+
+  const prepareRerun = (run) => {
+    const nextWorkflow = run.workflow_type || run.case_type || 'council';
+    setWorkflow(nextWorkflow);
+    setTask(run.input?.task || '');
+    setContext(run.input?.context || '');
+    setCriteria((run.input?.criteria || []).join('\n'));
+    if (run.input?.candidates?.length) setCandidates(run.input.candidates);
+    const snapshot = run.preset_snapshot || run.input?.preset_snapshot;
+    setDraftPreset(snapshot ? clone(snapshot) : null);
+    setActiveRun(null); setError('');
+  };
+
+  const prepareFollowUp = (run) => {
+    setWorkflow('ask'); setDraftPreset(null); setTask('');
+    setContext(`Previous question:\n${run.input?.task || ''}\n\nPrevious council synthesis:\n${resultText(run)}`);
+    setCriteria(''); setActiveRun(null); setError('');
+  };
+
+  const cancelActiveRun = async () => {
+    try { setActiveRun(await api.cancelRun(activeRun.run_id)); setRuns(await api.listRuns()); }
+    catch (err) { setError(err.message || 'Could not cancel the run.'); }
+  };
+
+  const retryActiveRun = async () => {
+    try { setActiveRun(await api.retryRun(activeRun.run_id)); setRuns(await api.listRuns()); }
+    catch (err) { setError(err.message || 'Could not retry the run.'); }
+  };
+
   const readyAliases = new Set(providers.ready_aliases);
   const selectedWorkflow = WORKFLOWS.find((item) => item.id === workflow);
+  const filteredRuns = runs.filter((run) =>
+    `${run.task || ''} ${run.preset_name || ''} ${run.workflow_type || ''}`.toLowerCase().includes(historyQuery.toLowerCase())
+  );
 
   return <div className={`council-shell ${inspectorOpen ? '' : 'inspector-collapsed'}`}>
     <aside className="left-rail">
@@ -153,9 +247,9 @@ export default function CouncilWorkbench() {
       <nav className="rail-section" aria-label="Workflows"><div className="rail-label">Workflows</div>
         {WORKFLOWS.map((item) => <button key={item.id} type="button" className={`rail-item ${workflow === item.id && !activeRun ? 'active' : ''}`} onClick={() => selectWorkflow(item.id)}><span>{item.label}</span><span className="rail-count">{presets.filter((preset) => preset.workflow_type === item.id).length}</span></button>)}
       </nav>
-      <section className="rail-section run-history"><div className="rail-label"><span>Recent runs</span><Icon name="history" size={15}/></div><div className="run-list">
+      <section className="rail-section run-history"><div className="rail-label"><span>Recent runs</span><Icon name="history" size={15}/></div><input className="history-search" aria-label="Search run history" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search runs…"/><div className="run-list">
         {runs.length === 0 && !loading ? <p className="muted-copy">No runs yet.</p> : null}
-        {runs.map((run) => <button key={run.run_id} type="button" className={`run-list-item ${activeRun?.run_id === run.run_id ? 'active' : ''}`} onClick={() => openRun(run.run_id)}><span className={`status-dot ${run.status}`}/><span className="run-list-copy"><strong>{run.task || 'Untitled run'}</strong><small>{run.preset_name || run.workflow_type} · {formatDate(run.created_at)}</small></span></button>)}
+        {filteredRuns.map((run) => <button key={run.run_id} type="button" className={`run-list-item ${activeRun?.run_id === run.run_id ? 'active' : ''}`} onClick={() => openRun(run.run_id)}><span className={`status-dot ${run.status}`}/><span className="run-list-copy"><strong>{run.task || 'Untitled run'}</strong><small>{run.preset_name || run.workflow_type} · {formatDate(run.created_at)}</small></span></button>)}
       </div></section>
       <div className="rail-footer"><span className={`connection-dot ${loading ? 'checking' : error ? 'offline' : 'online'}`}/>{loading ? 'Checking backend…' : error ? 'Backend issue' : 'Local backend connected'}</div>
     </aside>
@@ -171,25 +265,29 @@ export default function CouncilWorkbench() {
         </div>}
         <div className="supporting-fields"><label><span>Context <small>optional</small></span><textarea value={context} onChange={(event) => setContext(event.target.value)} rows="3" placeholder="Constraints, background, or relevant facts"/></label><label><span>Criteria <small>one per line</small></span><textarea value={criteria} onChange={(event) => setCriteria(event.target.value)} rows="3" placeholder={'Expected value\nDownside risk\nReversibility'}/></label></div>
         <div className="run-summary"><div className="summary-icon"><Icon name="spark"/></div><div><strong>{draftPreset?.name || 'Select a preset'}</strong><span>{draftPreset?.seats.filter((seat) => seat.enabled).length || 0} active seats · {draftPreset?.synthesizer_alias || 'No synthesizer'}</span></div><button className="primary-button" type="submit" disabled={running || !task.trim() || !draftPreset}>{running ? <><span className="spinner"/> Council running</> : <>Start run <Icon name="arrow"/></>}</button></div>
-      </form> : <RunResult run={activeRun} onNewRun={() => setActiveRun(null)}/>} 
+      </form> : <RunResult run={activeRun} onNewRun={() => setActiveRun(null)} onRerun={() => prepareRerun(activeRun)} onFollowUp={() => prepareFollowUp(activeRun)} onCancel={cancelActiveRun} onRetry={retryActiveRun}/>}
     </main>
 
     <aside className="inspector"><div className="inspector-header"><div><span className="eyebrow">Configuration</span><h2>{activeRun ? 'Run evidence' : 'Council setup'}</h2></div><button className="icon-button" type="button" onClick={() => setInspectorOpen(false)} aria-label="Close inspector"><Icon name="close"/></button></div>
       {activeRun ? <RunInspector run={activeRun}/> : <><label className="select-field"><span>Preset</span><select value={draftPreset?.id || ''} onChange={(event) => selectPreset(event.target.value)}>{workflowPresets.map((preset) => <option value={preset.id} key={preset.id}>{preset.name}</option>)}</select></label>
         {providers.ready_aliases.length === 0 && !loading && <div className="notice provider-notice"><Icon name="alert"/><span>No provider is ready. Configure at least one API key before running.</span></div>}
         <div className="seat-heading"><span>Seats</span><small>Role → model</small></div><div className="seat-list">{draftPreset?.seats.map((seat, index) => <div className="seat-card" key={seat.id}><div className="seat-card-top"><span className="seat-number">{String(index + 1).padStart(2, '0')}</span><input aria-label={`Seat ${index + 1} name`} value={seat.name} onChange={(event) => updateSeat(index, 'name', event.target.value)}/><button type="button" aria-label={`Remove ${seat.name}`} onClick={() => removeSeat(index)}><Icon name="close" size={14}/></button></div><textarea aria-label={`${seat.name} role prompt`} rows="3" value={seat.role_prompt} onChange={(event) => updateSeat(index, 'role_prompt', event.target.value)}/><label className="model-select"><span className={`status-dot ${readyAliases.has(seat.model_alias) ? 'completed' : 'failed'}`}/><select aria-label={`${seat.name} model`} value={seat.model_alias} onChange={(event) => updateSeat(index, 'model_alias', event.target.value)}>{providers.aliases.map((model) => <option value={model.alias} key={model.alias}>{model.display_name} · {model.provider}</option>)}</select></label></div>)}</div>
-        <button className="add-seat-button" type="button" onClick={addSeat}><Icon name="plus" size={16}/> Add seat</button><div className="assignment-block"><span>Synthesizer</span><select value={draftPreset?.synthesizer_alias || ''} onChange={(event) => setDraftPreset((previous) => ({ ...previous, synthesizer_alias: event.target.value }))}>{providers.aliases.map((model) => <option value={model.alias} key={model.alias}>{model.display_name}</option>)}</select></div></>}
+        <button className="add-seat-button" type="button" onClick={addSeat}><Icon name="plus" size={16}/> Add seat</button><div className="preset-actions"><button type="button" onClick={resetPreset}>Reset</button><button type="button" onClick={savePresetCopy}>Save a copy</button></div><div className="assignment-block"><span>Synthesizer</span><select value={draftPreset?.synthesizer_alias || ''} onChange={(event) => setDraftPreset((previous) => ({ ...previous, synthesizer_alias: event.target.value }))}>{providers.aliases.map((model) => <option value={model.alias} key={model.alias}>{model.display_name}</option>)}</select></div></>}
     </aside>
   </div>;
 }
 
-function RunResult({ run, onNewRun }) {
+function RunResult({ run, onNewRun, onRerun, onFollowUp, onCancel, onRetry }) {
   const finalText = resultText(run); const items = responseItems(run); const events = run.stage_events || [];
-  return <div className="run-result"><div className="result-toolbar"><div className={`status-pill ${run.status}`}><span className={`status-dot ${run.status}`}/>{statusLabel(run.status)}</div><span>{formatDate(run.completed_at || run.created_at)}</span><button className="secondary-button" type="button" onClick={onNewRun}><Icon name="plus" size={16}/> New run</button></div>
+  const exportJson = () => downloadFile(`${run.run_id}.json`, JSON.stringify(run, null, 2), 'application/json');
+  const exportMarkdown = () => downloadFile(`${run.run_id}.md`, runMarkdown(run), 'text/markdown');
+  return <div className="run-result"><div className="result-toolbar"><div className={`status-pill ${run.status}`}><span className={`status-dot ${run.status}`}/>{statusLabel(run.status)}</div><span>{formatDate(run.completed_at || run.created_at)}</span><div className="toolbar-actions">{run.status === 'running' ? <button className="danger-button" type="button" onClick={onCancel}>Cancel</button> : <><button type="button" onClick={onRerun}><Icon name="retry" size={15}/> Rerun</button><button type="button" onClick={onRetry}><Icon name="retry" size={15}/> Retry</button><button type="button" onClick={exportMarkdown}><Icon name="download" size={15}/> Markdown</button><button type="button" onClick={exportJson}><Icon name="download" size={15}/> JSON</button></>}<button type="button" onClick={onNewRun}><Icon name="plus" size={15}/> New</button></div></div>
+    {run.status === 'running' && <section className="running-card"><span className="spinner dark"/><div><strong>The council is deliberating</strong><p>This view refreshes automatically. You can leave it and reopen the run from history.</p></div></section>}
     <section className="verdict-card"><div className="section-heading"><div><span className="eyebrow">Council synthesis</span><h2>{run.workflow_type === 'compare' ? 'Comparison verdict' : run.workflow_type === 'ask' ? 'Synthesized answer' : 'Council verdict'}</h2></div><Icon name="spark" size={22}/></div>{finalText ? <div className="markdown-content"><ReactMarkdown>{finalText}</ReactMarkdown></div> : <p className="muted-copy">No synthesis was produced. Inspect the errors and individual responses below.</p>}</section>
     <section className="timeline-section"><div className="section-heading"><div><span className="eyebrow">Process</span><h2>Deliberation timeline</h2></div></div><div className="timeline">{events.map((event, index) => <div className="timeline-step" key={`${event.stage}-${index}`}><span className={`timeline-marker ${event.status}`}><Icon name={event.status === 'completed' ? 'check' : event.status === 'running' ? 'spark' : 'alert'} size={14}/></span><div><strong>{STAGE_LABELS[event.stage] || event.stage}</strong><small>{statusLabel(event.status)}</small></div></div>)}</div></section>
     <section className="responses-section"><div className="section-heading"><div><span className="eyebrow">Evidence</span><h2>Individual perspectives</h2></div><span className="count-badge">{items.length}</span></div><div className="response-grid">{items.map((item, index) => <details className="response-card" key={item.id || index}><summary><div><span>{item.advisor_name || item.display_name || `Response ${index + 1}`}</span><small>{item.actual_display_name || item.display_name || item.alias || item.model}</small></div><Icon name="chevron" size={16}/></summary><div className="markdown-content"><ReactMarkdown>{responseText(item)}</ReactMarkdown></div></details>)}</div></section>
     {run.errors?.length > 0 && <section className="error-list"><h2>Run issues</h2>{run.errors.map((item, index) => <p key={index}>{item}</p>)}</section>}
+    {run.status !== 'running' && <button className="follow-up-button" type="button" onClick={onFollowUp}>Ask a follow-up using this synthesis <Icon name="arrow" size={16}/></button>}
   </div>;
 }
 
@@ -197,5 +295,5 @@ function RunInspector({ run }) {
   const preset = run.preset_snapshot || run.input?.preset_snapshot || {};
   const responses = run.provider_metadata?.responses || [];
   const artifacts = run.artifact_paths || {};
-  return <div className="run-inspector"><div className="evidence-block"><span>Preset snapshot</span><strong>{preset.name || preset.id || 'Legacy configuration'}</strong><small>{preset.seats?.length || run.input?.respondent_aliases?.length || 0} seats preserved</small></div><div className="seat-heading"><span>Model evidence</span><small>{responses.length} calls</small></div><div className="model-evidence-list">{responses.map((item, index) => <div className="model-evidence" key={`${item.id}-${index}`}><span className={`status-dot ${item.error ? 'failed' : 'completed'}`}/><div><strong>{item.display_name || item.alias || 'Model call'}</strong><small>{item.actual_provider && item.actual_model ? `${item.actual_provider}/${item.actual_model}` : 'No successful provider response'}</small>{item.fallback_used ? <em>Fallback used</em> : null}</div></div>)}</div><div className="seat-heading"><span>Artifacts</span></div>{Object.entries(artifacts).map(([name, path]) => <div className="artifact-row" key={name}><span>{name.replaceAll('_', ' ')}</span><code title={path}>{path}</code></div>)}</div>;
+  return <div className="run-inspector"><div className="evidence-block"><span>Preset snapshot</span><strong>{preset.name || preset.id || 'Legacy configuration'}</strong><small>{preset.seats?.length || run.input?.respondent_aliases?.length || 0} seats preserved</small></div><div className="seat-heading"><span>Model evidence</span><small>{responses.length} calls</small></div><div className="model-evidence-list">{responses.map((item, index) => <div className="model-evidence" key={`${item.id}-${index}`}><span className={`status-dot ${item.error ? 'failed' : 'completed'}`}/><div><strong>{item.display_name || item.alias || 'Model call'}</strong><small>{item.actual_provider && item.actual_model ? `${item.actual_provider}/${item.actual_model}` : 'No successful provider response'}</small>{item.latency_ms ? <small>{Math.round(item.latency_ms)} ms</small> : null}{item.usage ? <small>{Object.entries(item.usage).map(([key, value]) => `${key}: ${value}`).join(' · ')}</small> : null}{item.fallback_used ? <em>Fallback used{item.fallback_reason ? ` · ${item.fallback_reason}` : ''}</em> : null}</div></div>)}</div><div className="seat-heading"><span>Artifacts</span></div>{Object.entries(artifacts).map(([name, path]) => <div className="artifact-row" key={name}><span>{name.replaceAll('_', ' ')}</span><code title={path}>{path}</code></div>)}</div>;
 }
