@@ -18,6 +18,7 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen --group dev
       - run: uv run pytest
+      - run: uv run --with pip-audit pip-audit --local --skip-editable
 
   frontend:
     runs-on: ubuntu-latest
