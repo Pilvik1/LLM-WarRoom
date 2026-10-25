@@ -22,7 +22,10 @@ from .providers.model_registry import (
 )
 
 
-async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
+async def stage1_collect_responses(
+    user_query: str,
+    respondent_aliases: list[str] | None = None,
+) -> List[Dict[str, Any]]:
     """
     Stage 1: Collect individual responses from all council models.
 
@@ -33,7 +36,7 @@ async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
         List of dicts with 'model' and 'response' keys
     """
     responses = await complete_aliases_parallel(
-        RESPONDENT_MODEL_ALIASES,
+        respondent_aliases or RESPONDENT_MODEL_ALIASES,
         user_prompt=user_query,
     )
 
@@ -66,7 +69,8 @@ async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
 
 async def stage2_collect_rankings(
     user_query: str,
-    stage1_results: List[Dict[str, Any]]
+    stage1_results: List[Dict[str, Any]],
+    reviewer_aliases: list[str] | None = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
     """
     Stage 2: Each model ranks the anonymized responses.
@@ -133,7 +137,7 @@ FINAL RANKING:
 Now provide your evaluation and ranking:"""
 
     responses = await complete_aliases_parallel(
-        REVIEWER_MODEL_ALIASES,
+        reviewer_aliases or REVIEWER_MODEL_ALIASES,
         user_prompt=ranking_prompt,
     )
 
@@ -161,7 +165,8 @@ Now provide your evaluation and ranking:"""
 async def stage3_synthesize_final(
     user_query: str,
     stage1_results: List[Dict[str, Any]],
-    stage2_results: List[Dict[str, Any]]
+    stage2_results: List[Dict[str, Any]],
+    synthesizer_alias: str | None = None,
 ) -> Dict[str, Any]:
     """
     Stage 3: Chairman synthesizes final response.
@@ -204,7 +209,7 @@ Provide a clear, well-reasoned final answer that represents the council's collec
 
     # Query the chairman model
     response = await complete_with_alias(
-        SYNTHESIZER_MODEL_ALIAS,
+        synthesizer_alias or SYNTHESIZER_MODEL_ALIAS,
         user_prompt=chairman_prompt,
     )
 
@@ -362,7 +367,12 @@ Title:"""
     return title
 
 
-async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
+async def run_full_council(
+    user_query: str,
+    respondent_aliases: list[str] | None = None,
+    reviewer_aliases: list[str] | None = None,
+    synthesizer_alias: str | None = None,
+) -> Tuple[List, List, Dict, Dict]:
     """
     Run the complete 3-stage council process.
 
@@ -373,7 +383,7 @@ async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
         Tuple of (stage1_results, stage2_results, stage3_result, metadata)
     """
     # Stage 1: Collect individual responses
-    stage1_results = await stage1_collect_responses(user_query)
+    stage1_results = await stage1_collect_responses(user_query, respondent_aliases)
 
     # If no models responded successfully, return error
     if not stage1_results:
@@ -383,7 +393,11 @@ async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
         }, {}
 
     # Stage 2: Collect rankings
-    stage2_results, label_to_model, label_metadata = await stage2_collect_rankings(user_query, stage1_results)
+    stage2_results, label_to_model, label_metadata = await stage2_collect_rankings(
+        user_query,
+        stage1_results,
+        reviewer_aliases,
+    )
 
     # Calculate aggregate rankings
     aggregate_rankings = calculate_aggregate_rankings(
@@ -396,7 +410,8 @@ async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
     stage3_result = await stage3_synthesize_final(
         user_query,
         stage1_results,
-        stage2_results
+        stage2_results,
+        synthesizer_alias,
     )
 
     # Prepare metadata

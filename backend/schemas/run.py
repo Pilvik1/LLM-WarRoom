@@ -13,10 +13,13 @@ class RunRecord(BaseModel):
     run_id: str
     case_id: str | None = None
     case_type: str
+    workflow_type: str | None = None
     input: CaseInput
     status: str
     created_at: str
     completed_at: str | None = None
+    preset_snapshot: dict[str, Any] = Field(default_factory=dict)
+    stage_events: list[dict[str, Any]] = Field(default_factory=list)
     independent_responses: list[Any] = Field(default_factory=list)
     peer_reviews: list[Any] = Field(default_factory=list)
     evaluations: list[Any] = Field(default_factory=list)

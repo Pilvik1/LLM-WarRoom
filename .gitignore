@@ -8,6 +8,8 @@ data/conversations/*
 !data/conversations/.gitkeep
 data/runs/*
 !data/runs/.gitkeep
+data/presets/*
+!data/presets/.gitkeep
 
 # Python
 __pycache__/

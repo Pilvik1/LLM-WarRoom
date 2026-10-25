@@ -28,6 +28,20 @@ async def run_compare_case(
     created_at = datetime.now(timezone.utc).isoformat()
     errors: list[str] = []
 
+    save_run_record(
+        RunRecord(
+            run_id=run_id,
+            case_id=case_input.id,
+            case_type=case_input.case_type,
+            workflow_type="compare",
+            input=case_input,
+            status="running",
+            created_at=created_at,
+            preset_snapshot=case_input.preset_snapshot,
+            stage_events=[{"stage": "run", "status": "running"}],
+        )
+    )
+
     respondent_aliases = case_input.respondent_aliases or list(RESPONDENT_MODEL_ALIASES)
     synthesizer_alias = case_input.synthesizer_alias or SYNTHESIZER_MODEL_ALIAS
     case_input.respondent_aliases = list(respondent_aliases)
@@ -115,10 +129,17 @@ async def run_compare_case(
         run_id=run_id,
         case_id=case_input.id,
         case_type=case_input.case_type,
+        workflow_type="compare",
         input=case_input,
         status=status,
         created_at=created_at,
         completed_at=datetime.now(timezone.utc).isoformat(),
+        preset_snapshot=case_input.preset_snapshot,
+        stage_events=[
+            {"stage": "comparisons", "status": "completed" if comparisons else "failed"},
+            {"stage": "synthesis", "status": "completed" if synthesis else "failed"},
+            {"stage": "run", "status": status},
+        ],
         comparisons=comparisons,
         aggregate_rankings=aggregate_rankings,
         synthesis=synthesis,

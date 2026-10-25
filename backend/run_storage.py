@@ -1,6 +1,7 @@
 """Storage helpers for case run artifacts."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -8,10 +9,13 @@ from .schemas.run import RunRecord
 
 
 RUNS_DIR = Path("data/runs")
+_SAFE_RUN_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def save_run_record(record: RunRecord) -> Path:
     """Persist a run record to data/runs/<run_id>/run.json."""
+    if not _SAFE_RUN_ID.fullmatch(record.run_id):
+        raise ValueError("Invalid run_id")
     run_dir = RUNS_DIR / record.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     path = run_dir / "run.json"
@@ -24,11 +28,46 @@ def save_run_record(record: RunRecord) -> Path:
 
 def load_run_record(run_id: str) -> dict[str, Any]:
     """Load data/runs/<run_id>/run.json as a dictionary."""
+    if not _SAFE_RUN_ID.fullmatch(run_id):
+        raise ValueError("Invalid run_id")
     path = RUNS_DIR / run_id / "run.json"
     if not path.exists():
         raise FileNotFoundError(f"Run artifact not found: {path}")
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def list_run_records(limit: int = 50) -> list[dict[str, Any]]:
+    """List normalized run summaries, newest first."""
+    if limit < 1:
+        raise ValueError("limit must be positive")
+    if not RUNS_DIR.exists():
+        return []
+
+    runs: list[dict[str, Any]] = []
+    for path in RUNS_DIR.glob("*/run.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        input_data = data.get("input") or {}
+        preset = data.get("preset_snapshot") or input_data.get("preset_snapshot") or {}
+        runs.append(
+            {
+                "run_id": data.get("run_id"),
+                "workflow_type": data.get("workflow_type") or data.get("case_type"),
+                "case_type": data.get("case_type"),
+                "status": data.get("status"),
+                "task": input_data.get("task"),
+                "preset_id": preset.get("id") or input_data.get("preset_id"),
+                "preset_name": preset.get("name"),
+                "created_at": data.get("created_at"),
+                "completed_at": data.get("completed_at"),
+                "errors": data.get("errors") or [],
+            }
+        )
+    runs.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+    return runs[:limit]
 
 
 def save_decision_record(run_id: str, decision: dict[str, Any]) -> Path:
@@ -64,6 +103,11 @@ def _dump_record(record: RunRecord) -> dict[str, Any]:
 def _normalize_run_dict(data: dict[str, Any]) -> dict[str, Any]:
     """Return the current normalized artifact shape with legacy fields intact."""
     normalized = dict(data)
+    normalized["workflow_type"] = normalized.get("workflow_type") or normalized.get("case_type")
+    normalized["preset_snapshot"] = normalized.get("preset_snapshot") or (
+        normalized.get("input") or {}
+    ).get("preset_snapshot") or {}
+    normalized["stage_events"] = normalized.get("stage_events") or []
     outputs = _outputs_for(normalized)
     normalized["outputs"] = outputs
     normalized["provider_metadata"] = _provider_metadata_for(normalized, outputs)

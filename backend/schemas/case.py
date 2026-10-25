@@ -4,12 +4,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from .preset import SeatDefinition
+
 
 class CaseInput(BaseModel):
     """Minimal input shape for one WarRoom case."""
 
     id: str | None = None
-    case_type: Literal["ask", "evaluate", "critique", "decide", "compare", "war_room"] = "ask"
+    case_type: Literal["ask", "evaluate", "critique", "decide", "compare", "war_room", "council"] = "ask"
     title: str | None = None
     task: str
     context: str | None = None
@@ -19,7 +21,11 @@ class CaseInput(BaseModel):
     artifact: str | None = None
     candidates: list[dict[str, str]] = Field(default_factory=list)
     respondent_aliases: list[str] = Field(default_factory=list)
+    reviewer_aliases: list[str] = Field(default_factory=list)
     synthesizer_alias: str | None = None
+    seats: list[SeatDefinition] = Field(default_factory=list)
+    preset_id: str | None = None
+    preset_snapshot: dict = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_mode_inputs(self) -> "CaseInput":
