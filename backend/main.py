@@ -11,15 +11,18 @@ import asyncio
 from datetime import datetime, timezone
 
 from . import storage
-from .case_runner import ask_case_from_message, new_run_id
+from .case_runner import ask_case_from_message, new_run_id, run_ask_case
 from .compare_runner import run_compare_case
 from .council import run_full_council, generate_conversation_title, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings
 from .critique_runner import run_critique_case
 from .decide_runner import run_decide_case
 from .evaluate_runner import run_evaluate_case
 from .war_room_runner import run_war_room_case
-from .run_storage import save_run_record
+from .run_storage import list_run_records, load_run_record, save_run_record
+from .preset_storage import get_preset, list_presets, save_preset
+from .providers.model_registry import list_model_aliases
 from .schemas.case import CaseInput
+from .schemas.preset import CouncilPreset, WorkflowType
 from .schemas.run import RunRecord
 
 app = FastAPI(title="WarRoom API")
@@ -93,6 +96,20 @@ class WarRoomCaseRequest(BaseModel):
     synthesizer_alias: str | None = None
 
 
+class CreateRunRequest(BaseModel):
+    """Create one canonical Ask, Council, or Compare run."""
+
+    workflow_type: WorkflowType
+    task: str
+    preset_id: str | None = None
+    preset: CouncilPreset | None = None
+    context: str | None = None
+    stakes: str | None = None
+    criteria: List[str] = Field(default_factory=list)
+    candidate_output: str | None = None
+    candidates: List[CompareCandidateRequest] = Field(default_factory=list)
+
+
 class ConversationMetadata(BaseModel):
     """Conversation metadata for list view."""
     id: str
@@ -119,6 +136,114 @@ async def root():
 async def health():
     """Stable API health endpoint."""
     return {"status": "ok", "service": "WarRoom API"}
+
+
+@app.get("/api/providers")
+async def list_providers():
+    """Return provider/model readiness without exposing credentials."""
+    aliases = list_model_aliases()
+    return {
+        "aliases": aliases,
+        "ready_aliases": [item["alias"] for item in aliases if item["enabled"]],
+    }
+
+
+@app.get("/api/presets", response_model=List[CouncilPreset])
+async def get_presets(workflow_type: WorkflowType | None = None):
+    return list_presets(workflow_type)
+
+
+@app.post("/api/presets", response_model=CouncilPreset, status_code=201)
+async def create_preset(preset: CouncilPreset):
+    try:
+        return save_preset(preset)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.put("/api/presets/{preset_id}", response_model=CouncilPreset)
+async def update_preset(preset_id: str, preset: CouncilPreset):
+    if preset.id != preset_id:
+        raise HTTPException(status_code=422, detail="preset path id must match body id")
+    try:
+        return save_preset(preset)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/api/runs")
+async def get_runs(limit: int = 50):
+    try:
+        return list_run_records(limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/runs/{run_id}")
+async def get_run(run_id: str):
+    try:
+        return load_run_record(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/runs", status_code=201)
+async def create_run(request: CreateRunRequest):
+    preset = _resolve_run_preset(request)
+    if preset.workflow_type != request.workflow_type:
+        raise HTTPException(
+            status_code=422,
+            detail="preset workflow_type does not match requested workflow_type",
+        )
+    respondents = [seat.model_alias for seat in preset.seats if seat.enabled]
+    candidates = [candidate.model_dump() for candidate in request.candidates]
+    case_type = {
+        "ask": "ask",
+        "council": "council",
+        "compare": "compare",
+    }[request.workflow_type]
+    try:
+        case_input = CaseInput(
+            case_type=case_type,
+            task=request.task,
+            context=request.context,
+            stakes=request.stakes,
+            criteria=request.criteria,
+            candidate_output=request.candidate_output,
+            candidates=candidates,
+            respondent_aliases=respondents,
+            reviewer_aliases=preset.reviewer_aliases,
+            synthesizer_alias=preset.synthesizer_alias,
+            seats=preset.seats,
+            preset_id=preset.id,
+            preset_snapshot=preset.model_dump(mode="json"),
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if request.workflow_type == "ask":
+        record = await run_ask_case(case_input)
+    elif request.workflow_type == "compare":
+        record = await run_compare_case(case_input)
+    else:
+        record = await run_war_room_case(case_input)
+    return load_run_record(record.run_id)
+
+
+def _resolve_run_preset(request: CreateRunRequest) -> CouncilPreset:
+    if request.preset:
+        return request.preset
+    preset_id = request.preset_id or {
+        "ask": "multi-model-ask",
+        "council": "general-council",
+        "compare": "structured-compare",
+    }[request.workflow_type]
+    preset = get_preset(preset_id)
+    if not preset:
+        raise HTTPException(status_code=404, detail=f"Preset not found: {preset_id}")
+    return preset
 
 
 @app.get("/api/conversations", response_model=List[ConversationMetadata])

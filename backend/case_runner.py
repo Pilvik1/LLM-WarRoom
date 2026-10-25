@@ -37,9 +37,26 @@ async def run_ask_case(case_input: CaseInput, run_id: str | None = None) -> RunR
     created_at = datetime.now(timezone.utc).isoformat()
     errors: list[str] = []
 
+    save_run_record(
+        RunRecord(
+            run_id=run_id,
+            case_id=case_input.id,
+            case_type=case_input.case_type,
+            workflow_type="ask",
+            input=case_input,
+            status="running",
+            created_at=created_at,
+            preset_snapshot=case_input.preset_snapshot,
+            stage_events=[{"stage": "run", "status": "running"}],
+        )
+    )
+
     try:
         stage1_results, stage2_results, stage3_result, metadata = await run_full_council(
-            case_input.task
+            case_input.task,
+            respondent_aliases=case_input.respondent_aliases,
+            reviewer_aliases=case_input.reviewer_aliases,
+            synthesizer_alias=case_input.synthesizer_alias,
         )
         status = "completed"
     except Exception as exc:
@@ -54,10 +71,17 @@ async def run_ask_case(case_input: CaseInput, run_id: str | None = None) -> RunR
         run_id=run_id,
         case_id=case_input.id,
         case_type=case_input.case_type,
+        workflow_type="ask",
         input=case_input,
         status=status,
         created_at=created_at,
         completed_at=datetime.now(timezone.utc).isoformat(),
+        preset_snapshot=case_input.preset_snapshot,
+        stage_events=[
+            {"stage": "independent_responses", "status": "completed"},
+            {"stage": "peer_review", "status": "completed"},
+            {"stage": "synthesis", "status": "completed"},
+        ] if status == "completed" else [{"stage": "run", "status": "failed"}],
         independent_responses=stage1_results,
         peer_reviews=stage2_results,
         aggregate_rankings=metadata.get("aggregate_rankings"),

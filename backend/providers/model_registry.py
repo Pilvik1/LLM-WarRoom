@@ -20,6 +20,21 @@ def resolve_alias(alias: str) -> dict[str, Any]:
         raise ValueError(f"Unknown model alias: {alias}") from exc
 
 
+def list_model_aliases() -> list[dict[str, Any]]:
+    """Return the secret-free model alias catalog for the UI."""
+    return [
+        {
+            "alias": alias,
+            "provider": entry.get("provider"),
+            "model": entry.get("model"),
+            "display_name": entry.get("display_name") or alias.replace("_", " ").title(),
+            "enabled": bool(entry.get("enabled")),
+            "fallback_aliases": list(entry.get("fallback_aliases") or []),
+        }
+        for alias, entry in MODEL_ALIASES.items()
+    ]
+
+
 def _fallback_chain(alias: str) -> list[str]:
     entry = resolve_alias(alias)
     fallbacks = list(entry.get("fallback_aliases") or [])

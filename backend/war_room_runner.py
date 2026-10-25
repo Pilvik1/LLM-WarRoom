@@ -28,6 +28,20 @@ async def run_war_room_case(
     created_at = datetime.now(timezone.utc).isoformat()
     errors: list[str] = []
 
+    save_run_record(
+        RunRecord(
+            run_id=run_id,
+            case_id=case_input.id,
+            case_type=case_input.case_type,
+            workflow_type="council",
+            input=case_input,
+            status="running",
+            created_at=created_at,
+            preset_snapshot=case_input.preset_snapshot,
+            stage_events=[{"stage": "run", "status": "running"}],
+        )
+    )
+
     respondent_aliases = case_input.respondent_aliases or list(RESPONDENT_MODEL_ALIASES)
     synthesizer_alias = case_input.synthesizer_alias or SYNTHESIZER_MODEL_ALIAS
     if not respondent_aliases:
@@ -41,16 +55,31 @@ async def run_war_room_case(
     verdict: dict[str, Any] | None = None
     status = "completed"
 
+    seats = [seat for seat in case_input.seats if seat.enabled]
+    if not seats:
+        seats = [
+            {
+                "id": f"seat_{index + 1}",
+                "name": advisor["name"],
+                "role_prompt": advisor["description"],
+                "model_alias": respondent_aliases[index % len(respondent_aliases)],
+            }
+            for index, advisor in enumerate(ADVISORS)
+        ]
+
     try:
         advisor_tasks = [
             _run_advisor(
-                alias=respondent_aliases[index % len(respondent_aliases)],
-                advisor=advisor,
+                alias=_seat_value(seat, "model_alias"),
+                advisor={
+                    "name": _seat_value(seat, "name"),
+                    "description": _seat_value(seat, "role_prompt"),
+                },
                 framed_question=framed_question,
                 case_input=case_input,
                 index=index,
             )
-            for index, advisor in enumerate(ADVISORS)
+            for index, seat in enumerate(seats)
         ]
         advisor_responses = await asyncio.gather(*advisor_tasks)
         for item in advisor_responses:
@@ -63,7 +92,9 @@ async def run_war_room_case(
             errors.append("No advisor responses were collected")
         else:
             anonymized = _anonymize(usable_advisors)
-            reviewer_aliases = list(REVIEWER_MODEL_ALIASES or respondent_aliases)
+            reviewer_aliases = list(
+                case_input.reviewer_aliases or REVIEWER_MODEL_ALIASES or respondent_aliases
+            )
             peer_prompt = build_peer_review_prompt(case_input, framed_question, anonymized)
             peer_tasks = [
                 _run_peer_review(alias=alias, prompt=peer_prompt, index=index)
@@ -116,10 +147,13 @@ async def run_war_room_case(
         run_id=run_id,
         case_id=case_input.id,
         case_type=case_input.case_type,
+        workflow_type="council",
         input=case_input,
         status=status,
         created_at=created_at,
         completed_at=datetime.now(timezone.utc).isoformat(),
+        preset_snapshot=case_input.preset_snapshot,
+        stage_events=_stage_events(status, bool(advisor_responses), bool(peer_reviews), bool(verdict)),
         framed_question=framed_question,
         advisor_responses=advisor_responses,
         peer_reviews=peer_reviews,
@@ -128,6 +162,29 @@ async def run_war_room_case(
     )
     save_run_record(record)
     return record
+
+
+def _seat_value(seat: Any, field: str) -> str:
+    if isinstance(seat, dict):
+        return str(seat[field])
+    return str(getattr(seat, field))
+
+
+def _stage_events(
+    status: str,
+    advisors_complete: bool,
+    reviews_complete: bool,
+    verdict_complete: bool,
+) -> list[dict[str, str]]:
+    events = []
+    for stage, complete in (
+        ("advisor_responses", advisors_complete),
+        ("peer_review", reviews_complete),
+        ("verdict", verdict_complete),
+    ):
+        events.append({"stage": stage, "status": "completed" if complete else "failed"})
+    events.append({"stage": "run", "status": status})
+    return events
 
 
 async def _run_advisor(
