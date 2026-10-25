@@ -1,4 +1,4 @@
-"""War Room case runner."""
+"""Role-based council case runner."""
 
 import asyncio
 from datetime import datetime, timezone

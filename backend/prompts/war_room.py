@@ -1,4 +1,4 @@
-"""Prompt builders for War Room cases."""
+"""Prompt builders for role-based council cases."""
 
 from typing import Any
 
@@ -59,8 +59,8 @@ ADVISORS = [
 
 
 def build_framing_prompt(case: CaseInput) -> str:
-    """Build an optional LLM framing prompt for a War Room case."""
-    return f"""Convert this raw War Room input into a neutral framed question.
+    """Build an optional LLM framing prompt for a council case."""
+    return f"""Convert this raw council input into a neutral framed question.
 
 Include:
 - core decision/question
@@ -104,7 +104,7 @@ def build_advisor_prompt(
     advisor: dict[str, str],
 ) -> str:
     """Build one independent advisor prompt."""
-    return f"""You are the {advisor["name"]} advisor in a War Room.
+    return f"""You are the {advisor["name"]} advisor in an Extended Council.
 
 Lens:
 {advisor["description"]}
@@ -132,11 +132,11 @@ def build_peer_review_prompt(
     framed_question: str,
     anonymized_responses: list[dict[str, str]],
 ) -> str:
-    """Build the anonymized War Room peer-review prompt."""
+    """Build the anonymized council peer-review prompt."""
     responses = "\n\n".join(
         f"{item['label']}:\n{item['response']}" for item in anonymized_responses
     )
-    return f"""Review these anonymized War Room advisor responses.
+    return f"""Review these anonymized council responses.
 
 Framed question:
 {framed_question}
@@ -159,7 +159,7 @@ def build_verdict_prompt(
     advisor_responses: list[dict[str, Any]],
     peer_reviews: list[dict[str, Any]],
 ) -> str:
-    """Build the final War Room verdict prompt."""
+    """Build the final council verdict prompt."""
     advisors = "\n\n".join(
         f"{item.get('advisor_name')}:\n{item.get('response', '')}"
         for item in advisor_responses
@@ -168,7 +168,7 @@ def build_verdict_prompt(
         f"{item.get('id', 'peer_review')}:\n{item.get('review', '')}"
         for item in peer_reviews
     )
-    return f"""Synthesize this War Room into a final verdict.
+    return f"""Synthesize this council into a final verdict.
 
 Framed question:
 {framed_question}
@@ -180,9 +180,9 @@ Peer reviews:
 {reviews or "No peer reviews were collected."}
 
 Use this exact output structure:
-## Where the War Room Agrees
-## Where the War Room Clashes
-## Blind Spots the War Room Caught
+## Where the Council Agrees
+## Where the Council Clashes
+## Blind Spots the Council Caught
 ## The Recommendation
 ## The One Thing to Do First
 

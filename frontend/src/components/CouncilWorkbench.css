@@ -45,6 +45,7 @@
 .canvas-header h1 { max-width:760px; margin:0; font-family:Georgia,'Times New Roman',serif; font-size:clamp(30px,4vw,45px); font-weight:500; line-height:1.08; letter-spacing:-.035em; }
 .canvas-header p { margin:9px 0 0; color:var(--muted); font-size:14px; }
 .icon-button { display:grid; place-items:center; width:36px; height:36px; border:1px solid var(--line); border-radius:9px; background:var(--surface); cursor:pointer; }
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible { outline:3px solid rgba(41,79,63,.28); outline-offset:2px; }
 .inspector-toggle { display:none; }
 .notice { display:flex; align-items:center; gap:9px; border-radius:9px; font-size:12px; line-height:1.45; }
 .error-notice { max-width:860px; margin:0 auto 18px; padding:12px 14px; color:var(--danger); background:var(--danger-soft); border:1px solid #e7c1bb; }
@@ -188,4 +189,7 @@ textarea::placeholder,input::placeholder { color:#aaada9; }
   .verdict-card { padding:22px 19px; }
   .timeline { grid-template-columns:1fr; }
   .timeline-step+.timeline-step { border-top:1px solid var(--line); border-left:0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
 }

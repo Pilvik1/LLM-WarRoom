@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# WarRoom - Start script
+# Extended Council - Start script
 
-echo "Starting WarRoom..."
+echo "Starting Extended Council..."
 echo ""
 
 # Start backend
@@ -20,7 +20,7 @@ npm run dev &
 FRONTEND_PID=$!
 
 echo ""
-echo "✓ WarRoom is running!"
+echo "✓ Extended Council is running!"
 echo "  Backend:  http://localhost:8001"
 echo "  Frontend: http://localhost:5173"
 echo ""

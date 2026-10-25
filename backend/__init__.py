@@ -1,1 +1,1 @@
-"""WarRoom backend package."""
+"""Extended Council backend package."""

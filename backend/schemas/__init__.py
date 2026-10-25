@@ -1,4 +1,4 @@
-"""Shared Pydantic schemas for WarRoom."""
+"""Shared Pydantic schemas for Extended Council."""
 
 from .case import CaseInput
 from .provider import ProviderRequest, ProviderResponse

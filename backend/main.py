@@ -1,4 +1,4 @@
-"""FastAPI backend for WarRoom."""
+"""FastAPI backend for Extended Council."""
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +25,7 @@ from .schemas.case import CaseInput
 from .schemas.preset import CouncilPreset, WorkflowType
 from .schemas.run import RunRecord
 
-app = FastAPI(title="WarRoom API")
+app = FastAPI(title="Extended Council API", version="0.2.0")
 _RUN_TASKS: dict[str, asyncio.Task] = {}
 
 # Enable CORS for local development
@@ -90,8 +90,8 @@ class DecideCaseRequest(BaseModel):
     rules: Dict[str, Any] = Field(default_factory=dict)
 
 
-class WarRoomCaseRequest(BaseModel):
-    """Request to run the War Room workflow."""
+class LegacyCouncilCaseRequest(BaseModel):
+    """Request shape retained for the legacy council endpoint."""
     task: str
     context: str | None = None
     stakes: str | None = None
@@ -135,13 +135,13 @@ class Conversation(BaseModel):
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "ok", "service": "WarRoom API"}
+    return {"status": "ok", "service": "Extended Council API"}
 
 
 @app.get("/api/health")
 async def health():
     """Stable API health endpoint."""
-    return {"status": "ok", "service": "WarRoom API"}
+    return {"status": "ok", "service": "Extended Council API"}
 
 
 @app.get("/api/providers")
@@ -689,8 +689,8 @@ async def decide_case(request: DecideCaseRequest):
 
 
 @app.post("/api/cases/war-room")
-async def war_room_case(request: WarRoomCaseRequest):
-    """Run a War Room case through advisors, peer review, and verdict."""
+async def war_room_case(request: LegacyCouncilCaseRequest):
+    """Run a council through the backward-compatible V0.1 endpoint."""
     try:
         case_input = CaseInput(
             case_type="war_room",

@@ -8,7 +8,7 @@ from .preset import SeatDefinition
 
 
 class CaseInput(BaseModel):
-    """Minimal input shape for one WarRoom case."""
+    """Input shape for one Extended Council case."""
 
     id: str | None = None
     case_type: Literal["ask", "evaluate", "critique", "decide", "compare", "war_room", "council"] = "ask"
