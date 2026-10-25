@@ -240,12 +240,4 @@ export const api = {
     return parseResponse(response, 'Failed to run decide case');
   },
 
-  async warRoomCase(payload) {
-    const response = await fetch(`${API_BASE}/api/cases/war-room`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return parseResponse(response, 'Failed to run War Room case');
-  },
 };

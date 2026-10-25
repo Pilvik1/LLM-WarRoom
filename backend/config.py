@@ -1,4 +1,4 @@
-"""Configuration for WarRoom."""
+"""Configuration for Extended Council."""
 
 import os
 from dotenv import load_dotenv
@@ -21,14 +21,19 @@ CLAUDE_PRIMARY_MODEL = os.getenv("CLAUDE_PRIMARY_MODEL", "claude-sonnet-4-202505
 CLAUDE_FAST_MODEL = os.getenv("CLAUDE_FAST_MODEL", "claude-3-5-haiku-20241022")
 
 
-def _csv_env(name: str, default: str) -> list[str]:
-    raw = os.getenv(name, default)
+def _env(name: str, legacy_name: str, default: str) -> str:
+    """Read a neutral V0.2 setting with a temporary legacy fallback."""
+    return os.getenv(name) or os.getenv(legacy_name) or default
+
+
+def _csv_env(name: str, legacy_name: str, default: str) -> list[str]:
+    raw = _env(name, legacy_name, default)
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
-def _float_env(name: str, default: float) -> float:
+def _float_env(name: str, legacy_name: str, default: float) -> float:
     try:
-        return float(os.getenv(name, str(default)))
+        return float(_env(name, legacy_name, str(default)))
     except ValueError:
         return default
 
@@ -93,17 +98,23 @@ MODEL_ALIASES = {
 }
 
 RESPONDENT_MODEL_ALIASES = _csv_env(
+    "COUNCIL_RESPONDENT_MODELS",
     "WARROOM_RESPONDENT_MODELS",
     "openai_primary,openrouter_free",
 )
 REVIEWER_MODEL_ALIASES = _csv_env(
+    "COUNCIL_REVIEWER_MODELS",
     "WARROOM_REVIEWER_MODELS",
     ",".join(RESPONDENT_MODEL_ALIASES),
 )
-SYNTHESIZER_MODEL_ALIAS = os.getenv("WARROOM_SYNTHESIZER_MODEL", "openai_fast")
-TITLE_MODEL_ALIAS = os.getenv("WARROOM_TITLE_MODEL", "openai_fast")
-FALLBACK_MODEL_ALIAS = os.getenv("WARROOM_FALLBACK_MODEL", "openai_fast")
-PROVIDER_TIMEOUT_SECONDS = _float_env("WARROOM_PROVIDER_TIMEOUT_SECONDS", 60.0)
+SYNTHESIZER_MODEL_ALIAS = _env("COUNCIL_SYNTHESIZER_MODEL", "WARROOM_SYNTHESIZER_MODEL", "openai_fast")
+TITLE_MODEL_ALIAS = _env("COUNCIL_TITLE_MODEL", "WARROOM_TITLE_MODEL", "openai_fast")
+FALLBACK_MODEL_ALIAS = _env("COUNCIL_FALLBACK_MODEL", "WARROOM_FALLBACK_MODEL", "openai_fast")
+PROVIDER_TIMEOUT_SECONDS = _float_env(
+    "COUNCIL_PROVIDER_TIMEOUT_SECONDS",
+    "WARROOM_PROVIDER_TIMEOUT_SECONDS",
+    60.0,
+)
 
 # Backward-compatible names for older code/docs. These now hold aliases, not
 # raw provider model IDs.

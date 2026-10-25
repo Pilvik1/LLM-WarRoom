@@ -1,4 +1,4 @@
-"""3-stage WarRoom orchestration.
+"""Three-stage Extended Council orchestration.
 
 The current runtime still follows the inherited llm-council ask flow:
 independent responses, anonymized peer ranking, and chairman synthesis.

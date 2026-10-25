@@ -1,4 +1,4 @@
-"""Provider adapters for WarRoom."""
+"""Provider adapters for Extended Council."""
 
 from .base import Provider
 from .anthropic_provider import AnthropicProvider

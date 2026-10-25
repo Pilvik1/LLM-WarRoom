@@ -1,215 +1,224 @@
-# LLM-WarRoom
+<p align="center">
+  <img src="docs/assets/extended-council-workbench.png" alt="Extended Council workbench showing a completed role-based, multi-model deliberation" width="100%">
+</p>
 
-LLM-WarRoom, shown in the app as WarRoom, is a vibe-coded, local-first AI
-reasoning workbench inspired by Andrej Karpathy's
-[LLM Council](https://github.com/karpathy/llm-council) and the Claude
-Council skill by [Ole Lehmann](https://x.com/itsolelehmann/status/2038661433626333649?s=20).
+<h1 align="center">Extended Council</h1>
 
-Existing Claude council skills simulate diversity through Claude sub-agents and personas. The WarRoom adds actual model diversity, where each council seat can combine a reasoning lens with a different underlying LLM.
+<p align="center">
+  A local-first, multi-model reasoning workbench with explicit roles.<br>
+  Choose which model occupies each seat, inspect the deliberation, and keep the result.
+</p>
 
-It is experimental. It can be useful for getting a second, third, or fifth
-opinion on a question or decision, but outputs are not guaranteed to be correct.
-Treat the app as a reasoning aid, not an authority.
+<p align="center">
+  <a href="https://github.com/Pilvik1/extended-llm-council/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Pilvik1/extended-llm-council/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-294f3f.svg">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776ab.svg">
+  <img alt="Node" src="https://img.shields.io/badge/Node-22%2B-43853d.svg">
+</p>
 
-## What It Is
+> **Status:** V0.2 is a usable hobby release, not a decision oracle. Ask, Council,
+> and Compare work through one persistent run lifecycle. Provider quality, speed,
+> pricing, and availability still depend on the accounts and models you configure.
 
-WarRoom is a local web app with a FastAPI backend and React frontend. It runs
-multi-model reasoning workflows, stores local JSON/Markdown artifacts, and lets
-you inspect how an answer or verdict was produced.
+## Why it exists
 
-The project is local-first: conversation and run artifacts are written to your
-local `data/` folder. Model calls still go to whichever configured providers you
-enable, such as OpenAI, Anthropic, or OpenRouter.
+The original LLM Council pattern gets several models to answer independently,
+anonymously review one another, and synthesize a result. Extended Council keeps
+that useful core and adds structure around it:
 
-## Why It Exists
+- reasoning roles and model assignments are separate;
+- every seat can use a different provider or model;
+- presets make useful councils reusable;
+- failures, fallbacks, latency, usage, and model identity remain visible; and
+- runs survive application restarts as inspectable JSON and Markdown artifacts.
 
-This repo started as a duplicated local experiment and was vibe-coded into a
-personal reasoning workbench. The goal is practical: make it easy to ask a hard
-question, compare independent model perspectives, surface disagreement, and get
-a synthesized answer or decision verdict.
+The goal is personal utility, not a SaaS costume. It helps pressure-test a
+decision, review code, compare options, or interrogate an investment thesis
+without pretending that five model calls equal truth.
 
-## Core Workflows
+## Five-minute start
 
-### Ask
+### Requirements
 
-Ask a question and get a refined multi-model answer. This is the normal
-question-answering workflow.
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- Node.js 22+
+- at least one OpenAI, Anthropic, or OpenRouter API key
 
-### War Room
-
-Pressure-test a decision, idea, plan, artifact, or tradeoff using multiple
-advisor lenses. This is meant for questions where disagreement, risks, and
-assumptions matter.
-
-## How Ask Works
-
-1. Independent responses: the task is sent to configured respondent model
-   aliases.
-2. Anonymized peer review: responses are labeled as `Response A`, `Response B`,
-   and so on before review.
-3. Final synthesis: the configured synthesizer alias produces the final answer.
-
-## How War Room Works
-
-1. Frame the question: the input is restated neutrally with useful criteria.
-2. Advisor lenses: five thinking roles independently pressure-test the task.
-3. Anonymized peer review: advisor outputs are reviewed without relying on model
-   names.
-4. Final verdict: the synthesizer produces a practical verdict with tradeoffs,
-   risks, and next steps.
-
-## Advisor Lenses
-
-- Contrarian
-- First Principles Thinker
-- Expansionist
-- Outsider
-- Executor
-
-Advisor lenses are prompt roles, not provider names. Model aliases still decide
-which provider/model generates each response.
-
-## Providers
-
-WarRoom uses model aliases configured in `backend/config.py`.
-
-- OpenAI direct: enabled when `OPENAI_API_KEY` is set.
-- Anthropic / Claude optional: enabled when `ANTHROPIC_API_KEY` is set and the
-  `anthropic` Python package is installed locally.
-- OpenRouter optional/fallback: enabled when `OPENROUTER_API_KEY` is set.
-
-OpenRouter free models may be slow, unreliable, rate limited, or lower quality.
-They are useful for smoke tests and fallback experiments, not as a serious
-default for important work.
-
-## Local Artifacts
-
-Runs are written under `data/runs/<run_id>/`:
-
-- `run.json`: canonical machine-readable run artifact.
-- `summary.md`: human-readable snapshot.
-- `decision.json`: generated by internal decide endpoints when applicable.
-
-Legacy chat conversation JSON is stored under `data/conversations/`. Runtime
-artifacts are ignored by git by default.
-
-## Setup
-
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and
-Node.js 22 or newer before continuing.
-
-Install Python dependencies with `uv`:
+### Install
 
 ```bash
+git clone https://github.com/Pilvik1/extended-llm-council.git
+cd extended-llm-council
 uv sync --frozen --group dev
-```
-
-Install frontend dependencies:
-
-```bash
-cd frontend
-npm ci
-cd ..
-```
-
-Copy the example environment file and fill in your local keys:
-
-```bash
+cd frontend && npm ci && cd ..
 cp .env.example .env
 ```
 
-Never commit `.env` btw
+Add at least one provider key to `.env`:
 
-## Environment Variables
-
-`.env.example` documents the public configuration surface:
-
-```bash
+```dotenv
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 OPENROUTER_API_KEY=
-
-WARROOM_RESPONDENT_MODELS=openai_primary,openrouter_free
-WARROOM_REVIEWER_MODELS=openai_primary,openrouter_free
-WARROOM_SYNTHESIZER_MODEL=openai_primary
-WARROOM_TITLE_MODEL=openai_fast
-WARROOM_FALLBACK_MODEL=openai_fast
-WARROOM_PROVIDER_TIMEOUT_SECONDS=60
-
-OPENAI_PRIMARY_MODEL=gpt-5.1
-OPENAI_FAST_MODEL=gpt-5-mini
-CLAUDE_PRIMARY_MODEL=claude-sonnet-4-20250514
-CLAUDE_FAST_MODEL=claude-3-5-haiku-20241022
-OPENROUTER_FREE_MODEL=openrouter/free
 ```
 
-Useful aliases include `openai_primary`, `openai_fast`, `openrouter_free`,
-`claude_primary`, and `claude_fast`.
-
-## Running Locally
-
-Option 1:
+Then start both services:
 
 ```bash
 ./start.sh
 ```
 
-Option 2:
+Open [http://localhost:5173](http://localhost:5173). The API binds to
+`127.0.0.1:8001`; wider network exposure is not enabled by default.
 
-```bash
-uv run python -m backend.main
+## Core workflows
+
+### Ask
+
+Send one question to independently configured respondents, anonymize their
+answers for peer review, and synthesize a final answer.
+
+### Council
+
+Assign reasoning roles to model seats and pressure-test a question, decision,
+plan, or artifact. Built-in presets include:
+
+- General Council
+- Decision Review
+- Code Review
+- Investment Case
+- Red Team
+
+Roles and models are deliberately independent. Changing a Contrarian from one
+model to another does not change its role prompt; changing the role does not
+require touching provider configuration.
+
+### Compare
+
+Evaluate two or more named options against explicit criteria. Independent
+comparisons and the final synthesis remain available for inspection instead of
+being flattened into an unexplained winner.
+
+## What works today
+
+- explicit role → model assignment for every council seat;
+- OpenAI, Anthropic, and OpenRouter provider adapters;
+- independent responses, anonymized peer review, and synthesis;
+- editable built-in presets plus saved local copies;
+- persistent run history, search, reopen, rerun, retry, and cancellation;
+- requested and actual provider/model identity, including fallbacks;
+- provider-reported latency and token usage when available;
+- Markdown and canonical JSON export;
+- responsive desktop and mobile workbench; and
+- legacy V0.1 conversation and case artifacts remain readable.
+
+## Architecture
+
+```text
+React workbench
+      │
+  FastAPI API
+      │
+run lifecycle + preset snapshot
+   ┌──┴───────────┐
+   │              │
+provider aliases  JSON / Markdown artifacts
+   │              │
+OpenAI · Anthropic · OpenRouter
 ```
 
-In another terminal:
+The application keeps JSON as the system of record for V0.2:
+
+```text
+data/
+├── presets/<preset-id>.json
+└── runs/<run-id>/
+    ├── run.json
+    └── summary.md
+```
+
+Each run stores an immutable preset snapshot. Editing a saved preset later does
+not rewrite the meaning of historical runs.
+
+## Configuration
+
+Model aliases live in [`backend/config.py`](backend/config.py). The neutral V0.2
+environment variables are:
+
+```dotenv
+COUNCIL_RESPONDENT_MODELS=openai_primary,openrouter_free,claude_primary
+COUNCIL_REVIEWER_MODELS=openai_primary,openrouter_free,claude_primary
+COUNCIL_SYNTHESIZER_MODEL=openai_primary
+COUNCIL_TITLE_MODEL=openai_fast
+COUNCIL_FALLBACK_MODEL=openai_fast
+COUNCIL_PROVIDER_TIMEOUT_SECONDS=60
+```
+
+The old `WARROOM_*` names remain temporary fallback aliases so existing local
+setups do not break. `COUNCIL_*` takes precedence when both are present.
+
+## Privacy and provider boundaries
+
+Run history and presets are stored locally under `data/`, and the project has no
+telemetry or hosted backend. Prompts, context, candidates, and council outputs
+still leave the machine when they are sent to a configured model provider.
+“Local-first” describes storage and control, not local inference.
+
+Do not submit credentials, regulated data, or confidential material unless you
+understand the selected provider's data handling. Read [PRIVACY.md](PRIVACY.md)
+and [SECURITY.md](SECURITY.md) before using sensitive inputs.
+
+## Development and validation
 
 ```bash
+uv sync --frozen --group dev
+uv run pytest
+
 cd frontend
-npm run dev
+npm ci
+npm test
+npm run lint
+npm run build
+npm audit --omit=dev
 ```
 
-Open http://localhost:5173.
+CI runs the same backend and frontend gates for pushes to `main` and for pull
+requests. The release path also includes live API smoke tests and rendered checks
+at desktop and mobile widths.
 
-## Safety / Privacy Notes
+## Limitations
 
-- This is experimental software and outputs may be wrong, incomplete, or
-  misleading.
-- The app is local-first, but prompts and context are sent to configured model
-  providers.
-- Do not paste secrets, private keys, customer data, health data, legal data, or
-  other sensitive information unless you understand the provider and data
-  handling implications.
-- Keep `.env` private. The repository intentionally ignores `.env` and local run
-  artifacts.
+- Outputs can be confidently wrong; this is a reasoning aid, not an authority.
+- Cancellation stops the local orchestration task, but a provider may already
+  have received an in-flight request.
+- Retry currently reruns the complete council rather than one individual seat.
+- Usage appears only when a provider reports it. Cost is intentionally not
+  estimated without explicit, current pricing data.
+- JSON storage is designed for one local user, not concurrent teams.
+- There is no authentication; keep the API bound to loopback unless you add an
+  appropriate security layer.
+- No web search, retrieval pipeline, workspace scanning, or autonomous tool
+  execution is included.
 
-## Current Status / Limitations
+The implementation history and remaining ideas live in [roadmap.md](roadmap.md).
 
-- The public UI focuses on Ask and War Room.
-- The interface still uses some conversation concepts inherited from the
-  original local experiment.
-- Workspace scanning and automatic context gathering are not implemented.
-- Decide mode is deterministic, but currently exposed as an internal/backend
-  endpoint rather than a polished UI workflow.
-- Provider availability depends on your local keys, installed packages, account
-  access, rate limits, and credits.
+## Inspiration and attribution
 
-The staged V0.2 rebuild is defined in [roadmap.md](roadmap.md). Its focus is
-first-class role-to-model assignment, reusable council presets, a canonical run
-lifecycle, and a redesigned council workbench.
+- [Andrej Karpathy's LLM Council](https://github.com/karpathy/llm-council)
+  established the independent response → anonymized review → synthesis pattern.
+- Ole Lehmann's Claude Council skill inspired the initial advisor lenses and the
+  experiment that became this repository.
 
-## Advanced / Internal Endpoints
+Extended Council is an independent implementation. No source code from those
+projects is bundled here.
 
-These endpoints exist for structured workflows and future UI work:
+## Contributing
 
-- `POST /api/cases/evaluate`
-- `POST /api/cases/critique`
-- `POST /api/cases/compare`
-- `POST /api/cases/decide`
-- `POST /api/cases/war-room`
+Small, focused issues and pull requests are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md). Security reports belong in GitHub's private
+vulnerability reporting flow described in [SECURITY.md](SECURITY.md).
 
-The app also keeps the legacy conversation endpoints used by the current Ask
-interface.
+## License
 
-## Acknowledgements
-
-- Inspired by Andrej Karpathy’s [llm-council](https://github.com/karpathy/llm-council), especially the pattern of independent model responses, anonymized peer review, and synthesis.
-- Inspired by Ole / [Oles X post](https://x.com/itsolelehmann/status/2038661433626333649?s=20) and his Council skill for Claude, especially the advisor-lens workflow: Contrarian, First Principles Thinker, Expansionist, Outsider, and Executor.
+See [LICENSE](LICENSE).

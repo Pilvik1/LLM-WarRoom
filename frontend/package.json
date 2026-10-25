@@ -1,8 +1,8 @@
 {
-  "name": "llm-warroom-frontend",
+  "name": "extended-council-frontend",
   "private": true,
-  "version": "0.0.0",
-  "description": "Frontend for the LLM-WarRoom local-first AI reasoning workbench",
+  "version": "0.2.0",
+  "description": "Frontend for the Extended Council multi-model reasoning workbench",
   "type": "module",
   "scripts": {
     "dev": "vite",
